@@ -22,7 +22,7 @@ variable "allowed_ips" {
   type        = set(string)
 }
 
-variable "whitelisted_txgroup_ip_ranges" {
+variable "whitelisted_ip_ranges" {
   default     = []
   description = "List of enterprise IP ranges to be whitelisted. Set to empty list to disable the whitelisting"
   type        = list(string)
