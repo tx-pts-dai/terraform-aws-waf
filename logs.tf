@@ -99,7 +99,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "logs" {
   rule {
     id = "waf-logs"
     expiration {
-      days = 7
+      days = var.waf_logs_retention
     }
     status = "Enabled"
   }

@@ -23,13 +23,8 @@ variable "allowed_ips" {
 }
 
 variable "whitelisted_txgroup_ip_ranges" {
-  default = [
-    "145.234.0.0/16",    # TX servers and trusted clients
-    "31.10.249.21/32",   # Küsnacht
-    "46.240.134.174/32", # Belgrade clients ISP 1
-    "77.243.21.173/32",  # Belgrade clients ISP 2
-  ]
-  description = "List of TX Group IP ranges to be whitelisted. Set to empty list to disable the whitelisting"
+  default     = []
+  description = "List of enterprise IP ranges to be whitelisted. Set to empty list to disable the whitelisting"
   type        = list(string)
 }
 
@@ -37,6 +32,12 @@ variable "allowed_ips_v6" {
   default     = []
   description = "The IPv6 to allow"
   type        = set(string)
+}
+
+variable "waf_logs_retention" {
+  default     = 7
+  description = "Retention time (in days) of waf logs"
+  type        = number
 }
 
 variable "block_uri_path_string" {
@@ -248,9 +249,9 @@ variable "allowed_partners" {
   }))
   # Example
   # [
-  #   { name     = "Allow_partner-feeds"
+  #   { name     = "Allow_partner-xxxxx"
   #     priority = 5
-  #     hostname = ["partner-feeds.publishing.tamedia.ch"]
+  #     hostname = ["partner-xxxxx.yyyyy.domain.ch"]
   #   },
   #   ...
   # ]
