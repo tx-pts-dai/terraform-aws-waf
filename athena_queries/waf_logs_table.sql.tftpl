@@ -1,0 +1,97 @@
+/* 
+the table name waf_logs is the one we'll use in all queries. If changed all queries will need to be accordingly modified.
+BE AWARE THAT IF A TABLE WITH THE SAME NAME ALREADY EXISTS, IT HAS TO BE DELETED BEFORE CREATING THE NEWONE !!!
+official query provided by AWS: https://docs.aws.amazon.com/athena/latest/ug/waf-logs.html#to-create-the-waf-table
+Please adapt the date range at the bottom of the file: 'projection.date.range' = '2022/09/26,NOW'
+*/
+CREATE EXTERNAL TABLE `waf_logs`(
+  `timestamp` bigint,
+  `formatversion` int,
+  `webaclid` string,
+  `terminatingruleid` string,
+  `terminatingruletype` string,
+  `action` string,
+  `terminatingrulematchdetails` array<
+                                    struct<
+                                        conditiontype:string,
+                                        location:string,
+                                        matcheddata:array<string>
+                                           >
+                                    >,
+  `httpsourcename` string,
+  `httpsourceid` string,
+  `rulegrouplist` array<
+                      struct<
+                          rulegroupid:string,
+                          terminatingrule:struct<
+                                              ruleid:string,
+                                              action:string,
+                                              rulematchdetails:string
+                                                >,
+                          nonterminatingmatchingrules:array<string>,
+                          excludedrules:string
+                            >
+                       >,
+ `ratebasedrulelist` array<
+                         struct<
+                             ratebasedruleid:string,
+                             limitkey:string,
+                             maxrateallowed:int
+                               >
+                          >,
+  `nonterminatingmatchingrules` array<
+                                    struct<
+                                        ruleid:string,
+                                        action:string
+                                          >
+                                     >,
+  `requestheadersinserted` string,
+  `responsecodesent` string,
+  `httprequest` struct<
+                    clientip:string,
+                    country:string,
+                    headers:array<
+                                struct<
+                                    name:string,
+                                    value:string
+                                      >
+                                 >,
+                    uri:string,
+                    args:string,
+                    httpversion:string,
+                    httpmethod:string,
+                    requestid:string
+                      >,
+  `labels` array<
+               struct<
+                   name:string
+                     >
+                >,
+  `captcharesponse` struct<
+                        responsecode:string,
+                        solvetimestamp:string,
+                        failureReason:string
+                          >
+)
+PARTITIONED BY (
+`region` string,
+`date` string)
+ROW FORMAT SERDE
+  'org.openx.data.jsonserde.JsonSerDe'
+STORED AS INPUTFORMAT
+  'org.apache.hadoop.mapred.TextInputFormat'
+OUTPUTFORMAT
+  'org.apache.hadoop.hive.ql.io.HiveIgnoreKeyTextOutputFormat'
+LOCATION
+  's3://${bucket_name}/AWSLogs/${account_id}/WAFLogs/${waf_scope}/${web_acl_name}/'
+TBLPROPERTIES(
+ 'projection.enabled' = 'true',
+ 'projection.region.type' = 'enum',
+ 'projection.region.values' = 'us-east-1,us-west-2,eu-central-1,eu-west-1,cloudfront',
+ 'projection.date.type' = 'date',
+  /* set the proper starting day, this will sped up the query and reduce costs */
+ 'projection.date.range' = '2022/09/26,NOW',
+ 'projection.date.format' = 'yyyy/MM/dd',
+ 'projection.date.interval' = '1',
+ 'projection.date.interval.unit' = 'DAYS',
+ 'storage.location.template' = 's3://${bucket_name}/AWSLogs/${account_id}/WAFLogs/$${region}/${web_acl_name}/$${date}/')
