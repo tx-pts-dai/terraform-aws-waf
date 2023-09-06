@@ -24,7 +24,7 @@ locals {
     local.google_bots_ipv6, # empty if enable_google_bots_whitelist is set to false
   ))
   final_allowed_ipv4 = compact(concat(
-    var.whitelisted_txgroup_ip_ranges,
+    var.whitelisted_ip_ranges,
     local.parsed_allowed_ipv4,
     local.google_bots_ipv4,           # empty if enable_google_bots_whitelist is set to false
     local.oracle_data_cloud_crawlers, # empty if enable_oracle_crawler_whitelist is set to false
