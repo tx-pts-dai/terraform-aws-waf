@@ -416,7 +416,7 @@ resource "aws_wafv2_web_acl" "waf" {
             }
           }
           dynamic "statement" {
-            # or_statement needs 2 arguments so handle the case when only one article is in the rule 
+            # or_statement needs 2 arguments so handle the case when only one article is in the rule
             for_each = length(rule.value.articles) > 1 ? [1] : [] # if more than one element use or_statement
             content {
               or_statement {
@@ -604,7 +604,7 @@ resource "aws_wafv2_web_acl" "waf" {
 
   dynamic "rule" {
     # Dont create this rule independently of var.aws_managed_rules_labels if length(var.aws_managed_rules) == 0
-    # The rule created by var.aws_managed_rules is the one adding labels to the requests, therefore without the 
+    # The rule created by var.aws_managed_rules is the one adding labels to the requests, therefore without the
     # rule for var.aws_managed_rules this rule would have no labels to check and therefore should not be created
     for_each = length(var.aws_managed_rules_labels) > 0 && length(var.aws_managed_rules) > 0 ? [1] : []
     content {

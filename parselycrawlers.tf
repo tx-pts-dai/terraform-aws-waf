@@ -1,4 +1,4 @@
-# Parse.ly is an analytics tool used by the Disco team. The use case for whitelisting their crawlers is that they might need to 
+# Parse.ly is an analytics tool used by the Disco team. The use case for whitelisting their crawlers is that they might need to
 # trigger a large recrawl after a wrong update to the metadata of the articles
 locals {
   parsely_whitelist_json = jsondecode(data.http.parsely_ip_list.response_body)
