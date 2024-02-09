@@ -8,7 +8,7 @@ locals {
   # Not the "real" regexp for ipv6. The right one has around 1000 characters...
   parsed_allowed_ipv6 = [
     for ip in var.allowed_ips_v6 :
-    format(regex("^[0-9a-f:]*/\\d{1,3}", ip))
+    format(regex("^[0-9a-fA-F:]*/\\d{1,3}", ip))
     if ip != ""
   ]
   self_ips = [
