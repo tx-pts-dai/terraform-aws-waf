@@ -70,7 +70,7 @@ module "waf" {
 }
 ```
 
-For a list of all variables please refer to: [terraform-dock](https://github.com/DND-IT/infra-terraform-module/blob/master/waf/terraform-docs.md)
+For a list of all variables please refer to: [terraform-dock](terraform-docs.md)
 
 ### Waf scope: CLOUDFRONT or REGIONAL
 
