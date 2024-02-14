@@ -583,30 +583,27 @@ resource "aws_wafv2_web_acl" "waf" {
   dynamic "rule" {
     for_each = var.aws_managed_rules
     content {
-      name     = rule.value.name
+      name     = reverse(split(":",rule.value.name))[0] # split on : and take the last element
       priority = rule.value.priority
       override_action {
         count {}
       }
       statement {
         managed_rule_group_statement {
-          name        = rule.value.name
+          name        = reverse(split(":",rule.value.name))[0] # split on : and take the last element
           vendor_name = "AWS"
         }
       }
       visibility_config {
         cloudwatch_metrics_enabled = true
-        metric_name                = rule.value.name
+        metric_name                = reverse(split(":",rule.value.name))[0] # split on : and take the last element
         sampled_requests_enabled   = true
       }
     }
   }
 
   dynamic "rule" {
-    # Dont create this rule independently of var.aws_managed_rules_labels if length(var.aws_managed_rules) == 0
-    # The rule created by var.aws_managed_rules is the one adding labels to the requests, therefore without the
-    # rule for var.aws_managed_rules this rule would have no labels to check and therefore should not be created
-    for_each = length(var.aws_managed_rules_labels) > 0 && length(var.aws_managed_rules) > 0 ? [1] : []
+    for_each = length(var.aws_managed_rules) > 0 ? [1] : []
     content {
       name     = "Rate_limit_based_on_AWS_labels"
       priority = 200
@@ -624,15 +621,15 @@ resource "aws_wafv2_web_acl" "waf" {
           limit              = var.aws_managed_rules_limit
           dynamic "scope_down_statement" {
             # or_statement needs 2 arguments so handle the case when only one article is in the rule
-            for_each = length(var.aws_managed_rules_labels) > 1 ? [1] : [] # if more than one element use or_statement
+            for_each = length(var.aws_managed_rules) > 1 ? [1] : [] # if more than one element use or_statement
             content {
               or_statement {
                 dynamic "statement" {
-                  for_each = var.aws_managed_rules_labels
+                  for_each = var.aws_managed_rules
                   content {
                     label_match_statement {
                       scope = "LABEL"
-                      key   = statement.value
+                      key   = statement.value.name
                     }
                   }
                 }
@@ -641,11 +638,11 @@ resource "aws_wafv2_web_acl" "waf" {
           }
           dynamic "scope_down_statement" {
             # or_statement needs 2 arguments so handle the case when only one article is in the rule
-            for_each = length(var.aws_managed_rules_labels) == 1 ? var.aws_managed_rules_labels : [] # if one element skip or_statement
+            for_each = length(var.aws_managed_rules) == 1 ? var.aws_managed_rules : [] # if one element skip or_statement
             content {
               label_match_statement {
                 scope = "LABEL"
-                key   = scope_down_statement.value
+                key   = scope_down_statement.value.name
               }
             }
           }

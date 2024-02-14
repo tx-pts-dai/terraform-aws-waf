@@ -136,28 +136,24 @@ variable "everybody_else_limit" {
 }
 
 variable "aws_managed_rules" {
-  default     = []
   description = "AWS managed rules for WAF to set. Not applicable for var.waf_scope = REGIONAL"
   type = list(object({
     name     = string
     priority = number
   }))
+  default = [
+    { name = "awswaf:managed:aws:anonymous-ip-list:AnonymousIPList", priority = 4 },
+    { name = "awswaf:managed:aws:anonymous-ip-list:HostingProviderIPList", priority = 5 },
+    { name = "awswaf:managed:aws:amazon-ip-list:AWSManagedIPDDoSList", priority = 6 },
+    { name = "awswaf:managed:aws:amazon-ip-list:AWSManagedIPReputationList", priority = 7 },
+    { name = "awswaf:managed:aws:amazon-ip-list:AWSManagedReconnaissanceList", priority = 8 }
+  ]
 }
 
 variable "aws_managed_rules_limit" {
   default     = 750
   description = "The rate limit for all requests matching the `aws_managed_rules_labels`. Not applicable for var.waf_scope = REGIONAL"
   type        = number
-}
-
-variable "aws_managed_rules_labels" {
-  default = [
-    "awswaf:managed:aws:anonymous-ip-list:AnonymousIPList",
-    "awswaf:managed:aws:anonymous-ip-list:HostingProviderIPList",
-  ]
-  description = "Labels set by the COUNT rules that want to be rate-limited. Not applicable for var.waf_scope = REGIONAL"
-  # https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-ip-rep.html
-  type = list(string)
 }
 
 variable "enable_count_ch_requests" {
