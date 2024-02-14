@@ -583,20 +583,20 @@ resource "aws_wafv2_web_acl" "waf" {
   dynamic "rule" {
     for_each = var.aws_managed_rules
     content {
-      name     = reverse(split(":",rule.value.name))[0] # split on : and take the last element
+      name     = reverse(split(":", rule.value.name))[0] # split on : and take the last element
       priority = rule.value.priority
       override_action {
         count {}
       }
       statement {
         managed_rule_group_statement {
-          name        = reverse(split(":",rule.value.name))[0] # split on : and take the last element
+          name        = reverse(split(":", rule.value.name))[0] # split on : and take the last element
           vendor_name = "AWS"
         }
       }
       visibility_config {
         cloudwatch_metrics_enabled = true
-        metric_name                = reverse(split(":",rule.value.name))[0] # split on : and take the last element
+        metric_name                = reverse(split(":", rule.value.name))[0] # split on : and take the last element
         sampled_requests_enabled   = true
       }
     }

@@ -8,6 +8,10 @@ variable "waf_scope" {
   default     = "CLOUDFRONT"
   description = "The scope of the deployed waf. Available options [CLOUDFRONT,REGIONAL]"
   type        = string
+  validation {
+    condition     = contains(["CLOUDFRONT", "REGIONAL"], var.waf_scope)
+    error_message = "Valid value is one of the following: [CLOUDFRONT,REGIONAL]"
+  }
 }
 
 variable "self_ips" {
