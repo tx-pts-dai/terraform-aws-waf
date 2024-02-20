@@ -1,31 +1,15 @@
 
 locals {
-  parsed_allowed_ipv4 = [
-    for ip in var.allowed_ips :
-    format(regex("^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}/\\d{1,2}", ip))
-    if ip != ""
-  ]
-  # Not the "real" regexp for ipv6. The right one has around 1000 characters...
-  parsed_allowed_ipv6 = [
-    for ip in var.allowed_ips_v6 :
-    format(regex("^[0-9a-fA-F:]*/\\d{1,3}", ip))
-    if ip != ""
-  ]
-  self_ips = [
-    for ip in var.self_ips :
-    format("%s/32", ip)
-  ]
-  everybody_else_exlude_countries = distinct(flatten([
+  everybody_else_exlude_countries = distinct(flatten([ # find all the countries mentioned in our rules
     for rules in var.country_rates : [rules.country_code]
   ]))
 
-  final_allowed_ipv6 = compact(concat(
-    local.parsed_allowed_ipv6,
+  group_whitelist_ipv6 = compact(concat(
+    var.whitelisted_ips_v6,
     local.google_bots_ipv6, # empty if enable_google_bots_whitelist is set to false
   ))
-  final_allowed_ipv4 = compact(concat(
-    var.whitelisted_ip_ranges,
-    local.parsed_allowed_ipv4,
+  group_whitelist_ipv4 = compact(concat(
+    var.whitelisted_ips_v4,
     local.google_bots_ipv4,           # empty if enable_google_bots_whitelist is set to false
     local.oracle_data_cloud_crawlers, # empty if enable_oracle_crawler_whitelist is set to false
     local.parsely_crawlers,           # empty if enable_parsely_crawlers_whitelist is set to false
@@ -34,28 +18,20 @@ locals {
   rate_limit_response_key = "rate-limit-error"
 }
 
-resource "aws_wafv2_ip_set" "self" {
-  count              = length(local.self_ips) > 0 ? 1 : 0
-  name               = "self"
+resource "aws_wafv2_ip_set" "whitelisted_ips_v4" {
+  count              = length(local.group_whitelist_ipv4) > 0 ? 1 : 0
+  name               = "whitelisted_ips_v4"
   scope              = var.waf_scope
   ip_address_version = "IPV4"
-  addresses          = local.self_ips
+  addresses          = local.group_whitelist_ipv4
 }
 
-resource "aws_wafv2_ip_set" "allowed_ips" {
-  count              = length(local.final_allowed_ipv4) > 0 ? 1 : 0
-  name               = "allowed_ips"
-  scope              = var.waf_scope
-  ip_address_version = "IPV4"
-  addresses          = local.final_allowed_ipv4
-}
-
-resource "aws_wafv2_ip_set" "allowed_ips_v6" {
-  count              = length(local.final_allowed_ipv6) > 0 ? 1 : 0
-  name               = "allowed_ips_v6"
+resource "aws_wafv2_ip_set" "whitelisted_ips_v6" {
+  count              = length(local.group_whitelist_ipv6) > 0 ? 1 : 0
+  name               = "whitelisted_ips_v6"
   scope              = var.waf_scope
   ip_address_version = "IPV6"
-  addresses          = local.final_allowed_ipv6
+  addresses          = local.group_whitelist_ipv6
 }
 
 resource "aws_wafv2_regex_pattern_set" "string" {
@@ -94,39 +70,10 @@ resource "aws_wafv2_web_acl" "waf" {
   }
 
   dynamic "rule" {
-    for_each = length(local.self_ips) == 0 ? [] : [1]
-    content {
-      name     = "self"
-      priority = 0
-      action {
-        allow {}
-      }
-      statement {
-        ip_set_reference_statement {
-          arn = aws_wafv2_ip_set.self[0].arn
-          dynamic "ip_set_forwarded_ip_config" {
-            for_each = var.waf_scope == "REGIONAL" ? [1] : []
-            content {
-              header_name       = "X-Forwarded-For"
-              fallback_behavior = "MATCH"
-              position          = "ANY" # https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_web_acl#position
-            }
-          }
-        }
-      }
-      visibility_config {
-        cloudwatch_metrics_enabled = true
-        metric_name                = "self"
-        sampled_requests_enabled   = true
-      }
-    }
-  }
-
-  dynamic "rule" {
-    for_each = length(local.final_allowed_ipv4) == 0 ? [] : [1]
+    for_each = length(local.group_whitelist_ipv4) == 0 ? [] : [1]
     content {
       name     = "allowed_ips"
-      priority = 1
+      priority = 0
       action {
         allow {}
       }
@@ -152,16 +99,16 @@ resource "aws_wafv2_web_acl" "waf" {
   }
 
   dynamic "rule" {
-    for_each = length(local.final_allowed_ipv6) == 0 ? [] : [1]
+    for_each = length(local.group_whitelist_ipv6) == 0 ? [] : [1]
     content {
-      name     = "allowed_ips_v6"
-      priority = 2
+      name     = "whitelisted_ips_v6"
+      priority = 1
       action {
         allow {}
       }
       statement {
         ip_set_reference_statement {
-          arn = aws_wafv2_ip_set.allowed_ips_v6[0].arn
+          arn = aws_wafv2_ip_set.whitelisted_ips_v6[0].arn
           dynamic "ip_set_forwarded_ip_config" {
             for_each = var.waf_scope == "REGIONAL" ? [1] : []
             content {
@@ -174,22 +121,22 @@ resource "aws_wafv2_web_acl" "waf" {
       }
       visibility_config {
         cloudwatch_metrics_enabled = true
-        metric_name                = "allowed_ips_v6"
+        metric_name                = "whitelisted_ips_v6"
         sampled_requests_enabled   = true
       }
     }
   }
 
   dynamic "rule" {
-    for_each = var.allowed_partners
+    for_each = length(var.whitelisted_hostnames) > 0 ? [1] : []
     content {
-      name     = rule.value.name
-      priority = rule.value.priority
+      name     = "Allowed hostnames"
+      priority = 2
       action {
         allow {}
       }
       dynamic "statement" {
-        for_each = rule.value.hostname
+        for_each = var.whitelisted_hostnames
         content {
           byte_match_statement {
             positional_constraint = "EXACTLY"
@@ -208,7 +155,7 @@ resource "aws_wafv2_web_acl" "waf" {
       }
       visibility_config {
         cloudwatch_metrics_enabled = true
-        metric_name                = rule.value.name
+        metric_name                = "Allowed hostnames"
         sampled_requests_enabled   = true
       }
     }
@@ -366,10 +313,8 @@ resource "aws_wafv2_web_acl" "waf" {
           limit              = var.everybody_else_limit
 
           scope_down_statement {
-
             not_statement {
               statement {
-
                 geo_match_statement {
                   country_codes = local.everybody_else_exlude_countries
                   dynamic "forwarded_ip_config" {
@@ -581,7 +526,7 @@ resource "aws_wafv2_web_acl" "waf" {
   }
 
   dynamic "rule" {
-    for_each = var.aws_managed_rules
+    for_each = var.aws_managed_rule_groups
     content {
       name     = rule.value.name
       priority = rule.value.priority
@@ -603,13 +548,10 @@ resource "aws_wafv2_web_acl" "waf" {
   }
 
   dynamic "rule" {
-    # Dont create this rule independently of var.aws_managed_rules_labels if length(var.aws_managed_rules) == 0
-    # The rule created by var.aws_managed_rules is the one adding labels to the requests, therefore without the
-    # rule for var.aws_managed_rules this rule would have no labels to check and therefore should not be created
-    for_each = length(var.aws_managed_rules_labels) > 0 && length(var.aws_managed_rules) > 0 ? [1] : []
+    for_each = var.aws_managed_rule_lables
     content {
-      name     = "Rate_limit_based_on_AWS_labels"
-      priority = 200
+      name     = rule.value.name
+      priority = rule.value.priority
       action {
         block {
           custom_response {
@@ -621,14 +563,14 @@ resource "aws_wafv2_web_acl" "waf" {
       statement {
         rate_based_statement {
           aggregate_key_type = "IP"
-          limit              = var.aws_managed_rules_limit
+          limit              = rule.value.limit
           dynamic "scope_down_statement" {
             # or_statement needs 2 arguments so handle the case when only one article is in the rule
-            for_each = length(var.aws_managed_rules_labels) > 1 ? [1] : [] # if more than one element use or_statement
+            for_each = length(rule.value.labels) > 1 ? [1] : [] # if more than one element use or_statement
             content {
               or_statement {
                 dynamic "statement" {
-                  for_each = var.aws_managed_rules_labels
+                  for_each = rule.value.labels
                   content {
                     label_match_statement {
                       scope = "LABEL"
@@ -641,7 +583,7 @@ resource "aws_wafv2_web_acl" "waf" {
           }
           dynamic "scope_down_statement" {
             # or_statement needs 2 arguments so handle the case when only one article is in the rule
-            for_each = length(var.aws_managed_rules_labels) == 1 ? var.aws_managed_rules_labels : [] # if one element skip or_statement
+            for_each = length(rule.value.labels) == 1 ? rule.value.labels : [] # if one element skip or_statement
             content {
               label_match_statement {
                 scope = "LABEL"
@@ -653,7 +595,7 @@ resource "aws_wafv2_web_acl" "waf" {
       }
       visibility_config {
         cloudwatch_metrics_enabled = true
-        metric_name                = "Rate_limit_based_on_AWS_labels"
+        metric_name                = rule.value.name
         sampled_requests_enabled   = true
       }
     }

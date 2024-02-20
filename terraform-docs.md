@@ -36,7 +36,7 @@ No modules.
 | [aws_s3_bucket_acl.logs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_acl) | resource |
 | [aws_s3_bucket_lifecycle_configuration.logs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_lifecycle_configuration) | resource |
 | [aws_wafv2_ip_set.allowed_ips](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_ip_set) | resource |
-| [aws_wafv2_ip_set.allowed_ips_v6](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_ip_set) | resource |
+| [aws_wafv2_ip_set.whitelisted_ips_v6](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_ip_set) | resource |
 | [aws_wafv2_ip_set.self](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_ip_set) | resource |
 | [aws_wafv2_regex_pattern_set.string](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_regex_pattern_set) | resource |
 | [aws_wafv2_web_acl.waf](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_web_acl) | resource |
@@ -55,7 +55,7 @@ No modules.
 | allowed\_partners | Allowed partner host headers | ```list(object({ name = string priority = number hostname = set(string) }))``` | `[]` | no |
 | aws\_managed\_rules | AWS managed rules for WAF to set. Not applicable for var.waf\_scope = REGIONAL | ```list(object({ name = string priority = number }))``` | `[]` | no |
 | aws\_managed\_rules\_labels | Labels set by the COUNT rules that want to be rate-limited. Not applicable for var.waf\_scope = REGIONAL | `list(string)` | ```[ "awswaf:managed:aws:anonymous-ip-list:AnonymousIPList", "awswaf:managed:aws:anonymous-ip-list:HostingProviderIPList" ]``` | no |
-| aws\_managed\_rules\_limit | The rate limit for all requests matching the `aws_managed_rules_labels`. Not applicable for var.waf\_scope = REGIONAL | `number` | `750` | no |
+| aws\_managed\_rules\_limit | The rate limit for all requests matching the `aws_managed_rule_groups`. Not applicable for var.waf\_scope = REGIONAL | `number` | `750` | no |
 | block\_articles | The list of articles to block from some countries | ```list(object({ name = string priority = number articles = set(string) country_code = set(string) }))``` | `[]` | no |
 | block\_regex\_pattern | The list of regex to block from some countries | ```map(object({ description = string priority = number country_code = set(string) regex_string = string }))``` | `{}` | no |
 | block\_uri\_path\_string | Allow to block specific strings, defining the positional constraint of the string. | ```list(object({ name = string priority = optional(number, 4) positional_constraint = optional(string, "EXACTLY") # Valid Values: EXACTLY | STARTS_WITH | ENDS_WITH | CONTAINS | CONTAINS_WORD search_string = string }))``` | `[]` | no |

@@ -10,28 +10,37 @@ variable "waf_scope" {
   type        = string
 }
 
-variable "self_ips" {
-  default     = []
-  description = "The IP from own AWS account (NAT gateways)"
-  type        = set(string)
-}
-
-variable "allowed_ips" {
-  default     = []
-  description = "The IPv4 to allow"
-  type        = set(string)
-}
-
-variable "whitelisted_ip_ranges" {
+variable "whitelisted_ips_v4" {
   default     = []
   description = "List of enterprise IP ranges to be whitelisted. Set to empty list to disable the whitelisting"
   type        = list(string)
+  validation {
+    condition = alltrue([
+      for ip in var.whitelisted_ips_v4 : can(regex("^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}/\\d{1,2}", ip))
+    ])
+    error_message = "whitelisted_ips_v4 must contain valid IP V4 ranges. Example: ['1.1.1.1/16', '255.255.255.255/32'"
+  }
 }
 
-variable "allowed_ips_v6" {
+variable "whitelisted_ips_v6" {
   default     = []
   description = "The IPv6 to allow"
   type        = set(string)
+  validation {
+    # Not the "real" regexp for ipv6. The right one has around 1000 characters...
+    condition = alltrue([
+      for ip in var.whitelisted_ips_v6 : can(regex("^[0-9a-fA-F:]*/\\d{1,3}", ip))
+    ])
+    error_message = "whitelisted_ips_v6 must contain valid IP V6 ranges."
+  }
+}
+
+variable "whitelisted_hostnames" {
+  default     = []
+  description = "Allowed partner host headers"
+  type        = list(string)
+  # Example
+  # ["partner-xxxxx.yyyyy.domain.ch"]
 }
 
 variable "waf_logs_retention" {
@@ -135,29 +144,45 @@ variable "everybody_else_limit" {
   type        = number
 }
 
-variable "aws_managed_rules" {
-  default     = []
-  description = "AWS managed rules for WAF to set. Not applicable for var.waf_scope = REGIONAL"
+variable "aws_managed_rule_groups" {
+  # All available groups are described here https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-list.html
+  description = "AWS Managed Rule Groups counting and labeling requests. The labels applied by these groups can be specified in aws_managed_rule_lables to rate limit requests. Not applicable for var.waf_scope = REGIONAL"
   type = list(object({
     name     = string
     priority = number
   }))
-}
-
-variable "aws_managed_rules_limit" {
-  default     = 750
-  description = "The rate limit for all requests matching the `aws_managed_rules_labels`. Not applicable for var.waf_scope = REGIONAL"
-  type        = number
-}
-
-variable "aws_managed_rules_labels" {
   default = [
-    "awswaf:managed:aws:anonymous-ip-list:AnonymousIPList",
-    "awswaf:managed:aws:anonymous-ip-list:HostingProviderIPList",
+    { name     = "AWSManagedRulesAnonymousIpList" # Full list of labels from this group: https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-ip-rep.html
+      priority = 7
+    },
+    { name     = "AWSManagedRulesAmazonIpReputationList" # Full list of labels from this group: https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-ip-rep.html
+      priority = 8
+    }
   ]
-  description = "Labels set by the COUNT rules that want to be rate-limited. Not applicable for var.waf_scope = REGIONAL"
-  # https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-ip-rep.html
-  type = list(string)
+}
+
+variable "aws_managed_rule_lables" {
+  description = "AWS Managed rules labels to rate limit. The group using this label must be specified in aws_managed_rule_groups in order to apply the label to incoming requests. Not applicable for var.waf_scope = REGIONAL"
+  type = list(object({
+    name     = string
+    labels   = list(string)
+    limit    = number
+    priority = number
+  }))
+  default = [
+    {
+      name     = "aws_managed_rule_low_limit"
+      labels   = ["awswaf:managed:aws:anonymous-ip-list:AnonymousIPList", "awswaf:managed:aws:amazon-ip-list:AWSManagedIPReputationList", "awswaf:managed:aws:amazon-ip-list:AWSManagedReconnaissanceList", "awswaf:managed:aws:amazon-ip-list:AWSManagedIPDDoSList"]
+      limit    = 500
+      priority = 20
+    },
+    {
+      name     = "aws_managed_rule_high_limit"
+      labels   = ["awswaf:managed:aws:anonymous-ip-list:HostingProviderIPList"]
+      limit    = 750
+      priority = 21
+    },
+  ]
 }
 
 variable "enable_count_ch_requests" {
@@ -237,24 +262,6 @@ variable "block_regex_pattern" {
   #     regex_string = "\\/content\\/(168154293778|199781524264|295880478843|456984065155|521246040231|548039927522|770770342355|850519746098|857984311223|875532264517|892009682269|961874634370)$"
   #   }
   # }
-}
-
-variable "allowed_partners" {
-  default     = []
-  description = "Allowed partner host headers"
-  type = list(object({
-    name     = string
-    priority = number
-    hostname = set(string)
-  }))
-  # Example
-  # [
-  #   { name     = "Allow_partner-xxxxx"
-  #     priority = 5
-  #     hostname = ["partner-xxxxx.yyyyy.domain.ch"]
-  #   },
-  #   ...
-  # ]
 }
 
 # LOGS

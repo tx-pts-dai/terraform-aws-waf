@@ -60,11 +60,11 @@ module "waf" {
 
   self_ips                = module.cf_extractor.public_ips # ie. NAT gateways
   allowed_ips             = var.waf_allowed_ips
-  allowed_ips_v6          = var.waf_allowed_ips_v6
+  whitelisted_ips_v6          = var.waf_whitelisted_ips_v6
   country_rates           = var.waf_country_rates
   block_articles          = var.waf_block_articles
-  aws_managed_count_rules = var.waf_aws_managed_rules
-  allowed_partners        = var.waf_allowed_partners
+  aws_managed_count_rules = var.waf_aws_managed_rule_lables
+  whitelisted_hostnames        = var.waf_whitelisted_hostnames
   everybody_else_limit    = var.waf_everybody_else_limit
   search_limitation       = var.waf_search_limitation
 }
