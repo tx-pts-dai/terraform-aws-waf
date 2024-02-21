@@ -10,56 +10,14 @@ variable "waf_scope" {
   type        = string
 }
 
-variable "whitelisted_ips_v4" {
-  default     = []
-  description = "List of enterprise IP ranges to be whitelisted. Set to empty list to disable the whitelisting"
-  type        = list(string)
-  validation {
-    condition = alltrue([
-      for ip in var.whitelisted_ips_v4 : can(regex("^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}/\\d{1,2}", ip))
-    ])
-    error_message = "whitelisted_ips_v4 must contain valid IP V4 ranges. Example: ['1.1.1.1/16', '255.255.255.255/32'"
-  }
-}
-
-variable "whitelisted_ips_v6" {
-  default     = []
-  description = "The IPv6 to allow"
-  type        = set(string)
-  validation {
-    # Not the "real" regexp for ipv6. The right one has around 1000 characters...
-    condition = alltrue([
-      for ip in var.whitelisted_ips_v6 : can(regex("^[0-9a-fA-F:]*/\\d{1,3}", ip))
-    ])
-    error_message = "whitelisted_ips_v6 must contain valid IP V6 ranges."
-  }
-}
-
-variable "whitelisted_hostnames" {
-  default     = []
-  description = "Allowed partner host headers"
-  type        = list(string)
-  # Example
-  # ["partner-xxxxx.yyyyy.domain.ch"]
-}
-
 variable "waf_logs_retention" {
   default     = 7
   description = "Retention time (in days) of waf logs"
   type        = number
 }
 
-variable "block_uri_path_string" {
-  default     = []
-  description = "Allow to block specific strings, defining the positional constraint of the string."
-  type = list(object({
-    name                  = string
-    priority              = optional(number, 4)
-    positional_constraint = optional(string, "EXACTLY") # Valid Values: EXACTLY | STARTS_WITH | ENDS_WITH | CONTAINS | CONTAINS_WORD
-    search_string         = string
-  }))
-}
-
+## Automatic whitlisting of bots and crawlers:
+# These lists will be dynamically compiled and concatenate to the whiteliste IPv4 and IPv6 lists
 variable "enable_oracle_crawler_whitelist" {
   default     = true
   description = "Whitelist the Oracle Data Cloud Crawler IPs. (https://www.oracle.com/corporate/acquisitions/grapeshot/crawler.html)"
@@ -108,40 +66,39 @@ variable "k6_ip_ranges_url" {
   type        = string
 }
 
-variable "country_rates" {
+## Variables for WAF Rules
+
+variable "whitelisted_ips_v4" {
   default     = []
-  description = "Countries blocking limits"
-  type = list(object({
-    name         = string
-    limit        = number
-    priority     = number
-    country_code = set(string)
-  }))
-  # Example
-  # [
-  #   { name         = "Group_1-CH"
-  #     limit        = 50000
-  #     country_code = ["CH"]
-  #     priority     = 20
-  #   },
-  #   { name         = "Group_2-DE_AT_FR"
-  #     limit        = 4000
-  #     country_code = ["AT", "FR", "DE"]
-  #     priority     = 21
-  #   },
-  #   ...
-  #   { name         = "Very_slow"
-  #     limit        = 100
-  #     country_code = ["AR", "BD", "BR", "KH", "CN", "CO", "EC", "IN", "ID", "MX", "NP", "PK", "RU", "SG", "TR", "UA", "AE", "ZM", "VN"]
-  #     priority     = 25
-  #   }
-  # ]
+  description = "List of enterprise IP ranges to be whitelisted. Set to empty list to disable the whitelisting"
+  type        = list(string)
+  validation {
+    condition = alltrue([
+      for ip in var.whitelisted_ips_v4 : can(regex("^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}/\\d{1,2}", ip))
+    ])
+    error_message = "whitelisted_ips_v4 must contain valid IP V4 ranges. Example: ['1.1.1.1/16', '255.255.255.255/32'"
+  }
 }
 
-variable "everybody_else_limit" {
-  default     = 0
-  description = "The blocking limit for all countries which are not covered by country_rates - not applied if it set to 0"
-  type        = number
+variable "whitelisted_ips_v6" {
+  default     = []
+  description = "The IPv6 to allow"
+  type        = list(string)
+  validation {
+    # Not the "real" regexp for ipv6. The right one has around 1000 characters...
+    condition = alltrue([
+      for ip in var.whitelisted_ips_v6 : can(regex("^[0-9a-fA-F:]*/\\d{1,3}", ip))
+    ])
+    error_message = "whitelisted_ips_v6 must contain valid IP V6 ranges."
+  }
+}
+
+variable "whitelisted_hostnames" {
+  default     = []
+  description = "Whitelisted host headers"
+  type        = list(string)
+  # Example
+  # ["partner-xxxxx.yyyyy.domain.ch"]
 }
 
 variable "aws_managed_rule_groups" {
@@ -153,12 +110,16 @@ variable "aws_managed_rule_groups" {
   }))
   default = [
     { name     = "AWSManagedRulesAnonymousIpList" # Full list of labels from this group: https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-ip-rep.html
-      priority = 7
+      priority = 10
     },
     { name     = "AWSManagedRulesAmazonIpReputationList" # Full list of labels from this group: https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-ip-rep.html
-      priority = 8
+      priority = 11
     }
   ]
+  validation {
+    condition     = alltrue([for group in var.aws_managed_rule_groups : group.priority >= 10 && group.priority < 19])
+    error_message = "var.aws_managed_rule_groups.priority must be bewteen 10 and 19"
+  }
 }
 
 variable "aws_managed_rule_lables" {
@@ -183,46 +144,93 @@ variable "aws_managed_rule_lables" {
       priority = 21
     },
   ]
+  validation {
+    condition     = alltrue([for label in var.aws_managed_rule_lables : (label.priority >= 20 && label.priority < 30) || (label.priority >= 60 && label.priority < 69)])
+    error_message = "var.aws_managed_rule_lables.priority must be bewteen 20 and 29 or between 60 and 69"
+  }
 }
 
-variable "enable_count_ch_requests" {
+variable "count_requests_from_ch" {
   default     = false
-  description = "Whether to enable a rule for counting the requests coming from Switzerland"
+  description = "If true it deploys a rule that counts requests from Switzerland with priority 4"
   type        = bool
 }
 
-variable "count_ch_priority" {
-  default     = 40
-  description = "The priority for counting requests coming from CH"
-  type        = number
-}
-
-variable "count_ch_limit" {
-  default     = 300
-  description = "The limit for the 'emergency button' rule - not applied if set to 0"
-  type        = number
-}
-
-variable "search_limitation" {
-  default = {
-    limit        = 0
-    country_code = []
+variable "country_rates" {
+  default     = []
+  description = "List of limits for gorups of countries. Available priorities: 30-49"
+  type = list(object({
+    name          = string
+    limit         = number
+    priority      = number
+    country_codes = set(string)
+  }))
+  # Example
+  # [
+  #   { name         = "Group_1-CH"
+  #     limit        = 50000
+  #     country_codes = ["CH"]
+  #     priority     = 30
+  #   },
+  #   { name         = "Group_2-DE_AT_FR"
+  #     limit        = 4000
+  #     country_codes = ["AT", "FR", "DE"]
+  #     priority     = 31
+  #   },
+  #   ...
+  #   { name         = "Very_slow"
+  #     limit        = 100
+  #     country_codes = ["AR", "BD", "BR", "KH", "CN", "CO", "EC", "IN", "ID", "MX", "NP", "PK", "RU", "SG", "TR", "UA", "AE", "ZM", "VN"]
+  #     priority     = 35
+  #   }
+  # ]
+  validation {
+    condition     = alltrue([for uri in var.country_rates : uri.priority >= 30 && uri.priority < 50])
+    error_message = "var.country_rates.priority must be bewteen 20 and 49"
   }
-  description = "The blocking limit for calls to /search for countries NOT in the country_code list - this value needs to be lower than the everybody else - not applied if the limit is set to 0"
+}
+
+variable "everybody_else_limit" {
+  default     = 0
+  description = "The blocking limit for all country_codes which are not covered by country_rates - not applied if it set to 0"
+  type        = number
+}
+
+variable "limit_search_requests_by_countries" {
+  default = {
+    limit         = 100
+    country_codes = []
+  }
+  description = "Limit requests on the path /search that comes from the specified list of country_codes. Rule not deployed if list of countries is empty."
   type = object({
-    limit        = number
-    country_code = set(string)
+    limit         = optional(number, 100)
+    country_codes = set(string)
   })
+}
+
+variable "block_uri_path_string" {
+  default     = []
+  description = "Allow to block specific strings, defining the positional constraint of the string. Available priorities range 5-19"
+  type = list(object({
+    name                  = string
+    priority              = optional(number, 71)
+    positional_constraint = optional(string, "EXACTLY") # Valid Values: EXACTLY | STARTS_WITH | ENDS_WITH | CONTAINS | CONTAINS_WORD
+    search_string         = string
+  }))
+  validation {
+    condition     = alltrue([for uri in var.block_uri_path_string : uri.priority >= 71 && uri.priority < 89])
+    error_message = "var.block_uri_path_string.priority must be bewteen 71 and 89"
+  }
 }
 
 variable "block_articles" {
   default     = []
-  description = "The list of articles to block from some countries"
+  description = "The list of articles to block from some country_codes"
   type = list(object({
-    name         = string
-    priority     = number
-    articles     = set(string)
-    country_code = set(string)
+    name          = string
+    priority      = number
+    articles      = set(string)
+    country_codes = set(string)
   }))
   # Example
   # [
@@ -237,31 +245,39 @@ variable "block_articles" {
   #       "/story/17703007",
   #       "-930543720570"
   #     ]
-  #     country_code = ["GB"]
-  #     priority     = 10
+  #     country_codes = ["GB"]
+  #     priority     = 90
   #   },
   #   ...
   # ]
+  validation {
+    condition     = alltrue([for uri in var.block_articles : uri.priority >= 90 && uri.priority < 109])
+    error_message = "var.block_articles.priority must be bewteen 90 and 109"
+  }
 }
 
 variable "block_regex_pattern" {
   default     = {}
-  description = "The list of regex to block from some countries"
+  description = "The list of regex to block from some country_codes"
   type = map(object({
-    description  = string
-    priority     = number
-    country_code = set(string)
-    regex_string = string
+    description   = string
+    priority      = number
+    country_codes = set(string)
+    regex_string  = string
   }))
   # Example
   # {
   #   List_of_Article_to_Block_from_USA = {
   #     description  = "List of Article to Block from USA"
-  #     priority     = 12
-  #     country_code = ["US"]
+  #     priority     = 110
+  #     country_codes = ["US"]
   #     regex_string = "\\/content\\/(168154293778|199781524264|295880478843|456984065155|521246040231|548039927522|770770342355|850519746098|857984311223|875532264517|892009682269|961874634370)$"
   #   }
   # }
+  validation {
+    condition     = alltrue([for uri in var.block_regex_pattern : uri.priority >= 110 && uri.priority < 129])
+    error_message = "var.block_regex_pattern.priority must be bewteen 110 and 129"
+  }
 }
 
 # LOGS

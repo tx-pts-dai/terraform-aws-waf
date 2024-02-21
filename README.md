@@ -19,8 +19,8 @@ It's designed to propose the following rules:
 - Limit requests starting with "/search"
 - (optionally) limit requests based on uri path
 - Block some articles for some coutries
-- Limit requests per countries
-- Limit not in limited countries (everybody_else)
+- Limit requests per country_codes
+- Limit not in limited country_codes (everybody_else)
 - Count Swiss requests
 
 ## Waf logging
@@ -66,7 +66,7 @@ module "waf" {
   aws_managed_count_rules = var.waf_aws_managed_rule_lables
   whitelisted_hostnames        = var.waf_whitelisted_hostnames
   everybody_else_limit    = var.waf_everybody_else_limit
-  search_limitation       = var.waf_search_limitation
+  limit_search_requests_by_countries       = var.waf_limit_search_requests_by_countries
 }
 ```
 

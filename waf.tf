@@ -1,7 +1,23 @@
+## Priorities:
+# 0: whitelisted_ips_v4
+# 1: whitelisted_ips_v6
+# 2: whitelisted_hostnames
+# 3: Rate_limit_everything_apart_from_CH
+# 4: count_requests_from_ch
+# 5-9: free
+# 10-19: AWS Managed rule groups (these are the one that only counts and labels requests
+# 20-29: AWS managed rule labels rate limit
+# 30-49: country_rates
+# 50: everybody_else_limit
+# 60-69: AWS managed rule labels rate limit
+# 70: limit_search_requests_by_countries
+# 71-89: block_uri_path_string
+# 90-109: block_articles
+# 110-129: block_regex_pattern
 
 locals {
-  everybody_else_exlude_countries = distinct(flatten([ # find all the countries mentioned in our rules
-    for rules in var.country_rates : [rules.country_code]
+  everybody_else_exlude_country_codes = distinct(flatten([ # find all the country_codes mentioned in our rules
+    for rules in var.country_rates : [rules.country_codes]
   ]))
 
   group_whitelist_ipv6 = compact(concat(
@@ -72,14 +88,14 @@ resource "aws_wafv2_web_acl" "waf" {
   dynamic "rule" {
     for_each = length(local.group_whitelist_ipv4) == 0 ? [] : [1]
     content {
-      name     = "allowed_ips"
+      name     = "whitelisted_ips_v4"
       priority = 0
       action {
         allow {}
       }
       statement {
         ip_set_reference_statement {
-          arn = aws_wafv2_ip_set.allowed_ips[0].arn
+          arn = aws_wafv2_ip_set.whitelisted_ips_v4[0].arn
           dynamic "ip_set_forwarded_ip_config" {
             for_each = var.waf_scope == "REGIONAL" ? [1] : []
             content {
@@ -92,7 +108,7 @@ resource "aws_wafv2_web_acl" "waf" {
       }
       visibility_config {
         cloudwatch_metrics_enabled = true
-        metric_name                = "allowed_ips"
+        metric_name                = "whitelisted_ips_v4"
         sampled_requests_enabled   = true
       }
     }
@@ -130,13 +146,40 @@ resource "aws_wafv2_web_acl" "waf" {
   dynamic "rule" {
     for_each = length(var.whitelisted_hostnames) > 0 ? [1] : []
     content {
-      name     = "Allowed hostnames"
+      name     = "whitelisted_hostnames"
       priority = 2
       action {
         allow {}
       }
       dynamic "statement" {
-        for_each = var.whitelisted_hostnames
+        # or_statement needs 2 arguments so handle the case when only one article is in the rule
+        for_each = length(var.whitelisted_hostnames) > 1 ? [1] : [] # if more than one element use or_statement
+        content {
+          or_statement {
+            dynamic "statement" {
+              for_each = var.whitelisted_hostnames
+              content {
+                byte_match_statement {
+                  positional_constraint = "EXACTLY"
+                  search_string         = statement.value
+                  field_to_match {
+                    single_header {
+                      name = "host"
+                    }
+                  }
+                  text_transformation {
+                    priority = 0
+                    type     = "NONE"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      dynamic "statement" {
+        # or_statement needs 2 arguments so handle the case when only one article is in the rule
+        for_each = length(var.whitelisted_hostnames) == 1 ? var.whitelisted_hostnames : [] # if just one element skip or_statement
         content {
           byte_match_statement {
             positional_constraint = "EXACTLY"
@@ -155,17 +198,115 @@ resource "aws_wafv2_web_acl" "waf" {
       }
       visibility_config {
         cloudwatch_metrics_enabled = true
-        metric_name                = "Allowed hostnames"
+        metric_name                = "whitelisted_hostnames"
+        sampled_requests_enabled   = true
+      }
+    }
+  }
+
+  # This rule is meant to be a failsafe switch in case of attack
+  # Change "count" to "block" if you are under attack and want to
+  # rate limit to a low number of requests every country apart from Switzerland
+  rule {
+    name     = "Rate_limit_everything_apart_from_CH"
+    priority = 3
+    action {
+      count {}
+    }
+    statement {
+      rate_based_statement {
+        aggregate_key_type = "IP"
+        limit              = 300
+        scope_down_statement {
+          not_statement {
+            statement {
+              geo_match_statement {
+                country_codes = ["CH"]
+                dynamic "forwarded_ip_config" {
+                  for_each = var.waf_scope == "REGIONAL" ? [1] : []
+                  content {
+                    header_name       = "X-Forwarded-For"
+                    fallback_behavior = "MATCH"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "Rate_limit_everything_apart_from_CH"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  dynamic "rule" {
+    for_each = var.count_requests_from_ch ? [1] : []
+    content {
+      name     = "Switzerland"
+      priority = 4
+      action {
+        count {}
+      }
+      statement {
+        geo_match_statement {
+          country_codes = ["CH"]
+          dynamic "forwarded_ip_config" {
+            for_each = var.waf_scope == "REGIONAL" ? [1] : []
+            content {
+              header_name       = "X-Forwarded-For"
+              fallback_behavior = "MATCH"
+            }
+          }
+        }
+      }
+      visibility_config {
+        cloudwatch_metrics_enabled = true
+        metric_name                = "Switzerland"
         sampled_requests_enabled   = true
       }
     }
   }
 
   dynamic "rule" {
-    for_each = var.search_limitation.limit == 0 ? [] : [1]
+    for_each = var.aws_managed_rule_groups
     content {
-      name     = "Limit_search"
-      priority = 3
+      name     = rule.value.name
+      priority = rule.value.priority
+      override_action {
+        count {}
+      }
+      statement {
+        managed_rule_group_statement {
+          name        = rule.value.name
+          vendor_name = "AWS"
+          dynamic "rule_action_override" {
+            for_each = rule.value.name == "AWSManagedRulesAmazonIpReputationList" ? [1] : []
+            content {
+              name = "AWSManagedIPDDoSList"
+              action_to_use {
+                captcha {
+                }
+              }
+            }
+          }
+        }
+      }
+      visibility_config {
+        cloudwatch_metrics_enabled = true
+        metric_name                = rule.value.name
+        sampled_requests_enabled   = true
+      }
+    }
+  }
+
+  dynamic "rule" {
+    for_each = var.aws_managed_rule_lables
+    content {
+      name     = rule.value.name
+      priority = rule.value.priority
       action {
         block {
           custom_response {
@@ -177,7 +318,144 @@ resource "aws_wafv2_web_acl" "waf" {
       statement {
         rate_based_statement {
           aggregate_key_type = "IP"
-          limit              = var.search_limitation.limit
+          limit              = rule.value.limit
+          dynamic "scope_down_statement" {
+            # or_statement needs 2 arguments so handle the case when only one article is in the rule
+            for_each = length(rule.value.labels) > 1 ? [1] : [] # if more than one element use or_statement
+            content {
+              or_statement {
+                dynamic "statement" {
+                  for_each = rule.value.labels
+                  content {
+                    label_match_statement {
+                      scope = "LABEL"
+                      key   = statement.value
+                    }
+                  }
+                }
+              }
+            }
+          }
+          dynamic "scope_down_statement" {
+            # or_statement needs 2 arguments so handle the case when only one article is in the rule
+            for_each = length(rule.value.labels) == 1 ? rule.value.labels : [] # if one element skip or_statement
+            content {
+              label_match_statement {
+                scope = "LABEL"
+                key   = scope_down_statement.value
+              }
+            }
+          }
+        }
+      }
+      visibility_config {
+        cloudwatch_metrics_enabled = true
+        metric_name                = rule.value.name
+        sampled_requests_enabled   = true
+      }
+    }
+  }
+
+  dynamic "rule" {
+    for_each = var.country_rates
+    content {
+      name     = rule.value.name
+      priority = rule.value.priority
+      action {
+        block {
+          custom_response {
+            custom_response_body_key = local.rate_limit_response_key
+            response_code            = 429
+          }
+        }
+      }
+      statement {
+        rate_based_statement {
+          aggregate_key_type = "IP"
+          limit              = rule.value.limit
+          scope_down_statement {
+            geo_match_statement {
+              country_codes = rule.value.country_codes
+              dynamic "forwarded_ip_config" {
+                for_each = var.waf_scope == "REGIONAL" ? [1] : []
+                content {
+                  header_name       = "X-Forwarded-For"
+                  fallback_behavior = "MATCH"
+                }
+              }
+            }
+          }
+        }
+      }
+      visibility_config {
+        cloudwatch_metrics_enabled = true
+        metric_name                = rule.value.name
+        sampled_requests_enabled   = true
+      }
+    }
+  }
+
+  dynamic "rule" {
+    for_each = var.everybody_else_limit == 0 ? [] : [1]
+    content {
+      name     = "Everybody_else"
+      priority = 50
+      action {
+        block {
+          custom_response {
+            custom_response_body_key = local.rate_limit_response_key
+            response_code            = 429
+          }
+        }
+      }
+      statement {
+        rate_based_statement {
+          aggregate_key_type = "IP"
+          limit              = var.everybody_else_limit
+
+          scope_down_statement {
+            not_statement {
+              statement {
+                geo_match_statement {
+                  country_codes = local.everybody_else_exlude_country_codes
+                  dynamic "forwarded_ip_config" {
+                    for_each = var.waf_scope == "REGIONAL" ? [1] : []
+                    content {
+                      header_name       = "X-Forwarded-For"
+                      fallback_behavior = "MATCH"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      visibility_config {
+        cloudwatch_metrics_enabled = true
+        metric_name                = "Everybody_else"
+        sampled_requests_enabled   = true
+      }
+    }
+  }
+
+  dynamic "rule" {
+    for_each = length(var.limit_search_requests_by_countries.country_codes) > 0 ? [1] : []
+    content {
+      name     = "limit_search_requests_by_countries"
+      priority = 70
+      action {
+        block {
+          custom_response {
+            custom_response_body_key = local.rate_limit_response_key
+            response_code            = 429
+          }
+        }
+      }
+      statement {
+        rate_based_statement {
+          aggregate_key_type = "IP"
+          limit              = var.limit_search_requests_by_countries.limit
           scope_down_statement {
             and_statement {
               statement {
@@ -197,7 +475,7 @@ resource "aws_wafv2_web_acl" "waf" {
                 not_statement {
                   statement {
                     geo_match_statement {
-                      country_codes = var.search_limitation.country_code
+                      country_codes = var.limit_search_requests_by_countries.country_codes
                       dynamic "forwarded_ip_config" {
                         for_each = var.waf_scope == "REGIONAL" ? [1] : []
                         content {
@@ -215,7 +493,7 @@ resource "aws_wafv2_web_acl" "waf" {
       }
       visibility_config {
         cloudwatch_metrics_enabled = true
-        metric_name                = "Limit_search"
+        metric_name                = "limit_search_requests_by_countries"
         sampled_requests_enabled   = true
       }
     }
@@ -256,89 +534,6 @@ resource "aws_wafv2_web_acl" "waf" {
   }
 
   dynamic "rule" {
-    for_each = var.country_rates
-    content {
-      name     = rule.value.name
-      priority = rule.value.priority
-      action {
-        block {
-          custom_response {
-            custom_response_body_key = local.rate_limit_response_key
-            response_code            = 429
-          }
-        }
-      }
-      statement {
-        rate_based_statement {
-          aggregate_key_type = "IP"
-          limit              = rule.value.limit
-          scope_down_statement {
-            geo_match_statement {
-              country_codes = rule.value.country_code
-              dynamic "forwarded_ip_config" {
-                for_each = var.waf_scope == "REGIONAL" ? [1] : []
-                content {
-                  header_name       = "X-Forwarded-For"
-                  fallback_behavior = "MATCH"
-                }
-              }
-            }
-          }
-        }
-      }
-      visibility_config {
-        cloudwatch_metrics_enabled = true
-        metric_name                = rule.value.name
-        sampled_requests_enabled   = true
-      }
-    }
-  }
-
-  dynamic "rule" {
-    for_each = var.everybody_else_limit == 0 ? [] : [1]
-    content {
-      name     = "Everybody_else"
-      priority = 30
-      action {
-        block {
-          custom_response {
-            custom_response_body_key = local.rate_limit_response_key
-            response_code            = 429
-          }
-        }
-      }
-      statement {
-        rate_based_statement {
-          aggregate_key_type = "IP"
-          limit              = var.everybody_else_limit
-
-          scope_down_statement {
-            not_statement {
-              statement {
-                geo_match_statement {
-                  country_codes = local.everybody_else_exlude_countries
-                  dynamic "forwarded_ip_config" {
-                    for_each = var.waf_scope == "REGIONAL" ? [1] : []
-                    content {
-                      header_name       = "X-Forwarded-For"
-                      fallback_behavior = "MATCH"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-      visibility_config {
-        cloudwatch_metrics_enabled = true
-        metric_name                = "Everybody_else"
-        sampled_requests_enabled   = true
-      }
-    }
-  }
-
-  dynamic "rule" {
     for_each = var.block_articles
     content {
       name     = rule.value.name
@@ -350,7 +545,7 @@ resource "aws_wafv2_web_acl" "waf" {
         and_statement {
           statement {
             geo_match_statement {
-              country_codes = rule.value.country_code
+              country_codes = rule.value.country_codes
               dynamic "forwarded_ip_config" {
                 for_each = var.waf_scope == "REGIONAL" ? [1] : []
                 content {
@@ -425,7 +620,7 @@ resource "aws_wafv2_web_acl" "waf" {
         and_statement {
           statement {
             geo_match_statement {
-              country_codes = rule.value.country_code
+              country_codes = rule.value.country_codes
               dynamic "forwarded_ip_config" {
                 for_each = var.waf_scope == "REGIONAL" ? [1] : []
                 content {
@@ -454,148 +649,6 @@ resource "aws_wafv2_web_acl" "waf" {
       visibility_config {
         cloudwatch_metrics_enabled = true
         metric_name                = rule.key
-        sampled_requests_enabled   = true
-      }
-    }
-  }
-
-  # This rule is meant to be a failsafe switch in case of attack
-  # Change "count" to "block" if you are under attack and want to
-  # rate limit to a low number of requests every country apart from Switzerland
-  rule {
-    name     = "Rate_limit_everything_apart_from_CH"
-    priority = 9000
-    action {
-      count {}
-    }
-    statement {
-      rate_based_statement {
-        aggregate_key_type = "IP"
-        limit              = var.count_ch_limit
-        scope_down_statement {
-          not_statement {
-            statement {
-              geo_match_statement {
-                country_codes = ["CH"]
-                dynamic "forwarded_ip_config" {
-                  for_each = var.waf_scope == "REGIONAL" ? [1] : []
-                  content {
-                    header_name       = "X-Forwarded-For"
-                    fallback_behavior = "MATCH"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-    visibility_config {
-      cloudwatch_metrics_enabled = true
-      metric_name                = "Rate_limit_everything_apart_from_CH"
-      sampled_requests_enabled   = true
-    }
-  }
-
-  dynamic "rule" {
-    for_each = var.enable_count_ch_requests ? [1] : []
-    content {
-      name     = "Switzerland"
-      priority = var.count_ch_priority
-      action {
-        count {}
-      }
-      statement {
-        geo_match_statement {
-          country_codes = ["CH"]
-          dynamic "forwarded_ip_config" {
-            for_each = var.waf_scope == "REGIONAL" ? [1] : []
-            content {
-              header_name       = "X-Forwarded-For"
-              fallback_behavior = "MATCH"
-            }
-          }
-        }
-      }
-      visibility_config {
-        cloudwatch_metrics_enabled = true
-        metric_name                = "Switzerland"
-        sampled_requests_enabled   = true
-      }
-    }
-  }
-
-  dynamic "rule" {
-    for_each = var.aws_managed_rule_groups
-    content {
-      name     = rule.value.name
-      priority = rule.value.priority
-      override_action {
-        count {}
-      }
-      statement {
-        managed_rule_group_statement {
-          name        = rule.value.name
-          vendor_name = "AWS"
-        }
-      }
-      visibility_config {
-        cloudwatch_metrics_enabled = true
-        metric_name                = rule.value.name
-        sampled_requests_enabled   = true
-      }
-    }
-  }
-
-  dynamic "rule" {
-    for_each = var.aws_managed_rule_lables
-    content {
-      name     = rule.value.name
-      priority = rule.value.priority
-      action {
-        block {
-          custom_response {
-            custom_response_body_key = local.rate_limit_response_key
-            response_code            = 429
-          }
-        }
-      }
-      statement {
-        rate_based_statement {
-          aggregate_key_type = "IP"
-          limit              = rule.value.limit
-          dynamic "scope_down_statement" {
-            # or_statement needs 2 arguments so handle the case when only one article is in the rule
-            for_each = length(rule.value.labels) > 1 ? [1] : [] # if more than one element use or_statement
-            content {
-              or_statement {
-                dynamic "statement" {
-                  for_each = rule.value.labels
-                  content {
-                    label_match_statement {
-                      scope = "LABEL"
-                      key   = statement.value
-                    }
-                  }
-                }
-              }
-            }
-          }
-          dynamic "scope_down_statement" {
-            # or_statement needs 2 arguments so handle the case when only one article is in the rule
-            for_each = length(rule.value.labels) == 1 ? rule.value.labels : [] # if one element skip or_statement
-            content {
-              label_match_statement {
-                scope = "LABEL"
-                key   = scope_down_statement.value
-              }
-            }
-          }
-        }
-      }
-      visibility_config {
-        cloudwatch_metrics_enabled = true
-        metric_name                = rule.value.name
         sampled_requests_enabled   = true
       }
     }
