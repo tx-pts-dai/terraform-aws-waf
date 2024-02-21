@@ -105,20 +105,23 @@ variable "aws_managed_rule_groups" {
   # All available groups are described here https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-list.html
   description = "AWS Managed Rule Groups counting and labeling requests. The labels applied by these groups can be specified in aws_managed_rule_lables to rate limit requests. Not applicable for var.waf_scope = REGIONAL"
   type = list(object({
-    name     = string
-    priority = number
+    name                  = string
+    priority              = number
+    override_group_action = optional(string, "count")
   }))
   default = [
-    { name     = "AWSManagedRulesAnonymousIpList" # Full list of labels from this group: https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-ip-rep.html
+    {
+      name     = "AWSManagedRulesAnonymousIpList" # Full list of labels from this group: https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-ip-rep.html
       priority = 10
     },
-    { name     = "AWSManagedRulesAmazonIpReputationList" # Full list of labels from this group: https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-ip-rep.html
+    {
+      name     = "AWSManagedRulesAmazonIpReputationList" # Full list of labels from this group: https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-ip-rep.html
       priority = 11
     }
   ]
   validation {
-    condition     = alltrue([for group in var.aws_managed_rule_groups : group.priority >= 10 && group.priority < 19])
-    error_message = "var.aws_managed_rule_groups.priority must be bewteen 10 and 19"
+    condition     = alltrue([for group in var.aws_managed_rule_groups : group.priority >= 10 && group.priority < 19 && (group.override_group_action == "count" || group.override_group_action == "block")])
+    error_message = "var.aws_managed_rule_groups.priority must be bewteen 10 and 19. var.aws_managed_rule_groups.override_group_action should be either count or block"
   }
 }
 

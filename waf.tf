@@ -277,21 +277,19 @@ resource "aws_wafv2_web_acl" "waf" {
       priority = rule.value.priority
       override_action {
         count {}
+        # dynamic "count" {
+        #   for_each = rule.value.override_group_action == "count" ? [1] : []
+        #   content {}
+        # }
+        # dynamic "block" {
+        #   for_each = rule.value.override_group_action == "block" ? [1] : []
+        #   content {}
+        # }
       }
       statement {
         managed_rule_group_statement {
           name        = rule.value.name
           vendor_name = "AWS"
-          dynamic "rule_action_override" {
-            for_each = rule.value.name == "AWSManagedRulesAmazonIpReputationList" ? [1] : []
-            content {
-              name = "AWSManagedIPDDoSList"
-              action_to_use {
-                captcha {
-                }
-              }
-            }
-          }
         }
       }
       visibility_config {
