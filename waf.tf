@@ -215,31 +215,6 @@ resource "aws_wafv2_web_acl" "waf" {
       priority = rule.value.priority
       override_action {
         count {} # valid blocks: count or none
-        # cannot be block. To block we need a rule action override for each of the labels inside the group under managed_rule_group_statement
-        #   rule_action_override {
-        #     - name = "AWSManagedIPDDoSList" -> null
-
-        #     - action_to_use {
-        #         - block {
-        #           }
-        #       }
-        #   }
-        # - rule_action_override {
-        #     - name = "AWSManagedIPReputationList" -> null
-
-        #     - action_to_use {
-        #         - block {
-        #           }
-        #       }
-        #   }
-        # - rule_action_override {
-        #     - name = "AWSManagedReconnaissanceList" -> null
-
-        #     - action_to_use {
-        #         - block {
-        #           }
-        #       }
-        #   }
       }
       statement {
         managed_rule_group_statement {
