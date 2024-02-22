@@ -20,7 +20,7 @@ variable "waf_logs_retention" {
   type        = number
 }
 
-## Automatic whitlisting of bots and crawlers:
+## Automatic whitelisting of bots and crawlers:
 # These lists will be dynamically compiled and concatenate to the whiteliste IPv4 and IPv6 lists
 variable "enable_oracle_crawler_whitelist" {
   default     = true
