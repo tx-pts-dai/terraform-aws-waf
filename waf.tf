@@ -16,7 +16,7 @@
 # 110-129: block_regex_pattern
 
 locals {
-  everybody_else_exlude_country_codes = distinct(flatten([ # find all the country_codes mentioned in our rules
+  everybody_else_exclude_country_codes = distinct(flatten([ # find all the country_codes mentioned in our rules
     for rules in var.country_rates : [rules.country_codes]
   ]))
 
