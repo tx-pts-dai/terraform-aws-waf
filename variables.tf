@@ -30,7 +30,7 @@ variable "enable_oracle_crawler_whitelist" {
 
 variable "oracle_data_cloud_crawlers_url" {
   default     = "https://www.oracle.com/corporate/acquisitions/grapeshot/crawler.html"
-  description = "The url whre to get the Oracle Data Cloud Crawler IPs list. In case of problems the default url can be overridden."
+  description = "The url where to get the Oracle Data Cloud Crawler IPs list. In case of problems the default url can be overridden."
   type        = string
 }
 
@@ -98,7 +98,7 @@ variable "whitelisted_ips_v6" {
 }
 
 variable "aws_managed_rule_groups" {
-  description = "AWS Managed Rule Groups counting and labeling requests. The labels applied by these groups can be specified in aws_managed_rule_lables to rate limit requests. Available groups are described here https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-list.html. Not applicable for var.waf_scope = REGIONAL"
+  description = "AWS Managed Rule Groups counting and labeling requests. The labels applied by these groups can be specified in aws_managed_rule_labels to rate limit requests. Available groups are described here https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-list.html. Not applicable for var.waf_scope = REGIONAL"
   type = list(object({
     name     = string
     priority = number
@@ -115,11 +115,11 @@ variable "aws_managed_rule_groups" {
   ]
   validation {
     condition     = alltrue([for group in var.aws_managed_rule_groups : group.priority >= 10 && group.priority < 20])
-    error_message = "var.aws_managed_rule_groups.priority must be bewteen 10 and 19. var.aws_managed_rule_groups.override_group_action should be either count or block"
+    error_message = "var.aws_managed_rule_groups.priority must be between 10 and 19. var.aws_managed_rule_groups.override_group_action should be either count or block"
   }
 }
 
-variable "aws_managed_rule_lables" {
+variable "aws_managed_rule_labels" {
   description = "AWS Managed rules labels to rate limit. The group using this label must be specified in aws_managed_rule_groups in order to apply the label to incoming requests. Not applicable for var.waf_scope = REGIONAL"
   type = list(object({
     name                 = string
@@ -127,7 +127,7 @@ variable "aws_managed_rule_lables" {
     enable_rate_limiting = optional(bool, true)      # if false all requests will be directly blocked
     limit                = optional(number, 500)     # only used if enable_rate_limiting = true
     action               = optional(string, "block") # possible actions: block, captcha, challenge
-    immunity_seconds     = optional(number, 300)     # only used if action is captcha (for challenge it's not currently allowed in tf, see waf.tf for more details). Immunity time in seconds after succesfully passing a challenge
+    immunity_seconds     = optional(number, 300)     # only used if action is captcha (for challenge it's not currently allowed in tf, see waf.tf for more details). Immunity time in seconds after successfully passing a challenge
     priority             = number
   }))
   default = [
@@ -144,8 +144,8 @@ variable "aws_managed_rule_lables" {
     },
   ]
   validation {
-    condition     = alltrue([for rule in var.aws_managed_rule_lables : ((rule.priority >= 20 && rule.priority < 30) || (rule.priority >= 60 && rule.priority < 70) && contains(["block", "captcha", "challenge"], rule.action))])
-    error_message = "var.aws_managed_rule_lables.priority must be bewteen 20 and 29 or between 60 and 69. var.aws_managed_rule_lables.action must be either block, captcha or challenge"
+    condition     = alltrue([for rule in var.aws_managed_rule_labels : ((rule.priority >= 20 && rule.priority < 30) || (rule.priority >= 60 && rule.priority < 70) && contains(["block", "captcha", "challenge"], rule.action))])
+    error_message = "var.aws_managed_rule_labels.priority must be between 20 and 29 or between 60 and 69. var.aws_managed_rule_labels.action must be either block, captcha or challenge"
   }
 }
 
@@ -157,7 +157,7 @@ variable "count_requests_from_ch" {
 
 variable "country_rates" {
   default     = []
-  description = "List of limits for gorups of countries."
+  description = "List of limits for groups of countries."
   type = list(object({
     name          = string
     limit         = number
@@ -185,7 +185,7 @@ variable "country_rates" {
   # ]
   validation {
     condition     = alltrue([for uri in var.country_rates : uri.priority >= 30 && uri.priority < 50])
-    error_message = "var.country_rates.priority must be bewteen 20 and 49"
+    error_message = "var.country_rates.priority must be between 20 and 49"
   }
 }
 
@@ -218,7 +218,7 @@ variable "block_uri_path_string" {
   }))
   validation {
     condition     = alltrue([for uri in var.block_uri_path_string : uri.priority >= 71 && uri.priority < 90 && contains(["EXACTLY", "STARTS_WITH", "ENDS_WITH", "CONTAINS", "CONTAINS_WORD"], uri.positional_constraint)])
-    error_message = "var.block_uri_path_string.priority must be bewteen 71 and 89"
+    error_message = "var.block_uri_path_string.priority must be between 71 and 89"
   }
 }
 
@@ -251,7 +251,7 @@ variable "block_articles" {
   # ]
   validation {
     condition     = alltrue([for uri in var.block_articles : uri.priority >= 90 && uri.priority < 110])
-    error_message = "var.block_articles.priority must be bewteen 90 and 109"
+    error_message = "var.block_articles.priority must be between 90 and 109"
   }
 }
 
@@ -275,7 +275,7 @@ variable "block_regex_pattern" {
   # }
   validation {
     condition     = alltrue([for uri in var.block_regex_pattern : uri.priority >= 110 && uri.priority < 130])
-    error_message = "var.block_regex_pattern.priority must be bewteen 110 and 129"
+    error_message = "var.block_regex_pattern.priority must be between 110 and 129"
   }
 }
 
@@ -288,7 +288,7 @@ variable "enable_logging" {
 }
 
 variable "deploy_athena_queries" {
-  description = "Enables the deployment of the athena presaved queries to easily access the logs generated by waf"
+  description = "Enables the deployment of the athena pre-saved queries to easily access the logs generated by waf"
   default     = true
   type        = bool
 }

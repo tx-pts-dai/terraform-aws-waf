@@ -231,7 +231,7 @@ resource "aws_wafv2_web_acl" "waf" {
   }
 
   dynamic "rule" {
-    for_each = var.aws_managed_rule_lables
+    for_each = var.aws_managed_rule_labels
     content {
       name     = rule.value.name
       priority = rule.value.priority
@@ -263,7 +263,7 @@ resource "aws_wafv2_web_acl" "waf" {
         }
       }
       # dynamic "challenge_config" { 
-      # # avaliable in the console but seems to be not supported on tf (?) 
+      # # available in the console but seems to be not supported on tf (?) 
       # # even if is mentioned in the docs https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_web_acl#challenge_config-block
       # # and is in an open issue https://github.com/hashicorp/terraform-provider-aws/issues/29071 
       #   for_each = rule.value.action == "challenge" ? [1] : []

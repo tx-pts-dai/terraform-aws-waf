@@ -44,7 +44,7 @@ module "waf" {
       priority = 11
     }
   ]
-  aws_managed_rule_lables = [
+  aws_managed_rule_labels = [
     {
       name     = "aws_managed_rule_low_limit"
       labels   = ["awswaf:managed:aws:anonymous-ip-list:AnonymousIPList", "awswaf:managed:aws:amazon-ip-list:AWSManagedIPReputationList", "awswaf:managed:aws:amazon-ip-list:AWSManagedReconnaissanceList", "awswaf:managed:aws:amazon-ip-list:AWSManagedIPDDoSList"]
