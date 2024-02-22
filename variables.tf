@@ -8,30 +8,10 @@ variable "waf_scope" {
   default     = "CLOUDFRONT"
   description = "The scope of the deployed waf. Available options [CLOUDFRONT,REGIONAL]"
   type        = string
-}
-
-variable "self_ips" {
-  default     = []
-  description = "The IP from own AWS account (NAT gateways)"
-  type        = set(string)
-}
-
-variable "allowed_ips" {
-  default     = []
-  description = "The IPv4 to allow"
-  type        = set(string)
-}
-
-variable "whitelisted_ip_ranges" {
-  default     = []
-  description = "List of enterprise IP ranges to be whitelisted. Set to empty list to disable the whitelisting"
-  type        = list(string)
-}
-
-variable "allowed_ips_v6" {
-  default     = []
-  description = "The IPv6 to allow"
-  type        = set(string)
+  validation {
+    condition     = contains(["CLOUDFRONT", "REGIONAL"], var.waf_scope)
+    error_message = "var.waf_scope can be either CLOUDFRONT or REGIONAL"
+  }
 }
 
 variable "waf_logs_retention" {
@@ -40,17 +20,8 @@ variable "waf_logs_retention" {
   type        = number
 }
 
-variable "block_uri_path_string" {
-  default     = []
-  description = "Allow to block specific strings, defining the positional constraint of the string."
-  type = list(object({
-    name                  = string
-    priority              = optional(number, 4)
-    positional_constraint = optional(string, "EXACTLY") # Valid Values: EXACTLY | STARTS_WITH | ENDS_WITH | CONTAINS | CONTAINS_WORD
-    search_string         = string
-  }))
-}
-
+## Automatic whitelisting of bots and crawlers:
+# These lists will be dynamically compiled and concatenate to the whitelisted IPv4 and IPv6 lists
 variable "enable_oracle_crawler_whitelist" {
   default     = true
   description = "Whitelist the Oracle Data Cloud Crawler IPs. (https://www.oracle.com/corporate/acquisitions/grapeshot/crawler.html)"
@@ -59,7 +30,7 @@ variable "enable_oracle_crawler_whitelist" {
 
 variable "oracle_data_cloud_crawlers_url" {
   default     = "https://www.oracle.com/corporate/acquisitions/grapeshot/crawler.html"
-  description = "The url whre to get the Oracle Data Cloud Crawler IPs list. In case of problems the default url can be overridden."
+  description = "The url where to get the Oracle Data Cloud Crawler IPs list. In case of problems the default url can be overridden."
   type        = string
 }
 
@@ -99,105 +70,166 @@ variable "k6_ip_ranges_url" {
   type        = string
 }
 
+## Variables for WAF Rules
+
+variable "whitelisted_ips_v4" {
+  default     = []
+  description = "List of enterprise IP ranges to be whitelisted. Set to empty list to disable the whitelisting"
+  type        = list(string)
+  validation {
+    condition = alltrue([
+      for ip in var.whitelisted_ips_v4 : can(regex("^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}/\\d{1,2}", ip))
+    ])
+    error_message = "whitelisted_ips_v4 must contain valid IP V4 ranges with mask. Example: ['1.1.1.1/16', '255.255.255.255/32']"
+  }
+}
+
+variable "whitelisted_ips_v6" {
+  default     = []
+  description = "The IPv6 to allow"
+  type        = list(string)
+  validation {
+    # Not the "real" regexp for ipv6. The right one has around 1000 characters...
+    condition = alltrue([
+      for ip in var.whitelisted_ips_v6 : can(regex("^[0-9a-fA-F:]*/\\d{1,3}", ip))
+    ])
+    error_message = "whitelisted_ips_v6 must contain valid IP V6 ranges."
+  }
+}
+
+variable "aws_managed_rule_groups" {
+  description = "AWS Managed Rule Groups counting and labeling requests. The labels applied by these groups can be specified in aws_managed_rule_labels to rate limit requests. Available groups are described here https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-list.html. Not applicable for var.waf_scope = REGIONAL"
+  type = list(object({
+    name     = string
+    priority = number
+  }))
+  default = [
+    {
+      name     = "AWSManagedRulesAnonymousIpList" # Full list of labels from this group: https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-ip-rep.html
+      priority = 10
+    },
+    {
+      name     = "AWSManagedRulesAmazonIpReputationList" # Full list of labels from this group: https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-ip-rep.html
+      priority = 11
+    }
+  ]
+  validation {
+    condition     = alltrue([for group in var.aws_managed_rule_groups : group.priority >= 10 && group.priority < 20])
+    error_message = "var.aws_managed_rule_groups.priority must be between 10 and 19. var.aws_managed_rule_groups.override_group_action should be either count or block"
+  }
+}
+
+variable "aws_managed_rule_labels" {
+  description = "AWS Managed rules labels to rate limit. The group using this label must be specified in aws_managed_rule_groups in order to apply the label to incoming requests. Not applicable for var.waf_scope = REGIONAL"
+  type = list(object({
+    name                 = string
+    labels               = list(string)
+    enable_rate_limiting = optional(bool, true)      # if false all requests will be directly blocked
+    limit                = optional(number, 500)     # only used if enable_rate_limiting = true
+    action               = optional(string, "block") # possible actions: block, captcha, challenge
+    immunity_seconds     = optional(number, 300)     # only used if action is captcha (for challenge it's not currently allowed in tf, see waf.tf for more details). Immunity time in seconds after successfully passing a challenge
+    priority             = number
+  }))
+  default = [
+    {
+      name     = "aws_managed_rule_low_limit"
+      labels   = ["awswaf:managed:aws:anonymous-ip-list:AnonymousIPList", "awswaf:managed:aws:amazon-ip-list:AWSManagedIPReputationList", "awswaf:managed:aws:amazon-ip-list:AWSManagedReconnaissanceList", "awswaf:managed:aws:amazon-ip-list:AWSManagedIPDDoSList"]
+      priority = 20
+    },
+    {
+      name     = "aws_managed_rule_high_limit"
+      labels   = ["awswaf:managed:aws:anonymous-ip-list:HostingProviderIPList"]
+      limit    = 750
+      priority = 21
+    },
+  ]
+  validation {
+    condition     = alltrue([for rule in var.aws_managed_rule_labels : ((rule.priority >= 20 && rule.priority < 30) || (rule.priority >= 60 && rule.priority < 70) && contains(["block", "captcha", "challenge"], rule.action))])
+    error_message = "var.aws_managed_rule_labels.priority must be between 20 and 29 or between 60 and 69. var.aws_managed_rule_labels.action must be either block, captcha or challenge"
+  }
+}
+
+variable "count_requests_from_ch" {
+  default     = false
+  description = "If true it deploys a rule that counts requests from Switzerland with priority 4"
+  type        = bool
+}
+
 variable "country_rates" {
   default     = []
-  description = "Countries blocking limits"
+  description = "List of limits for groups of countries."
   type = list(object({
-    name         = string
-    limit        = number
-    priority     = number
-    country_code = set(string)
+    name          = string
+    limit         = number
+    priority      = number
+    country_codes = set(string)
   }))
   # Example
   # [
   #   { name         = "Group_1-CH"
   #     limit        = 50000
-  #     country_code = ["CH"]
-  #     priority     = 20
+  #     country_codes = ["CH"]
+  #     priority     = 30
   #   },
   #   { name         = "Group_2-DE_AT_FR"
   #     limit        = 4000
-  #     country_code = ["AT", "FR", "DE"]
-  #     priority     = 21
+  #     country_codes = ["AT", "FR", "DE"]
+  #     priority     = 31
   #   },
   #   ...
   #   { name         = "Very_slow"
   #     limit        = 100
-  #     country_code = ["AR", "BD", "BR", "KH", "CN", "CO", "EC", "IN", "ID", "MX", "NP", "PK", "RU", "SG", "TR", "UA", "AE", "ZM", "VN"]
-  #     priority     = 25
+  #     country_codes = ["AR", "BD", "BR", "KH", "CN", "CO", "EC", "IN", "ID", "MX", "NP", "PK", "RU", "SG", "TR", "UA", "AE", "ZM", "VN"]
+  #     priority     = 35
   #   }
   # ]
+  validation {
+    condition     = alltrue([for uri in var.country_rates : uri.priority >= 30 && uri.priority < 50])
+    error_message = "var.country_rates.priority must be between 20 and 49"
+  }
 }
 
 variable "everybody_else_limit" {
   default     = 0
-  description = "The blocking limit for all countries which are not covered by country_rates - not applied if it set to 0"
+  description = "The limit for all country_codes which are not covered by country_rates - not applied if it set to 0"
   type        = number
 }
 
-variable "aws_managed_rules" {
-  default     = []
-  description = "AWS managed rules for WAF to set. Not applicable for var.waf_scope = REGIONAL"
-  type = list(object({
-    name     = string
-    priority = number
-  }))
-}
-
-variable "aws_managed_rules_limit" {
-  default     = 750
-  description = "The rate limit for all requests matching the `aws_managed_rules_labels`. Not applicable for var.waf_scope = REGIONAL"
-  type        = number
-}
-
-variable "aws_managed_rules_labels" {
-  default = [
-    "awswaf:managed:aws:anonymous-ip-list:AnonymousIPList",
-    "awswaf:managed:aws:anonymous-ip-list:HostingProviderIPList",
-  ]
-  description = "Labels set by the COUNT rules that want to be rate-limited. Not applicable for var.waf_scope = REGIONAL"
-  # https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-ip-rep.html
-  type = list(string)
-}
-
-variable "enable_count_ch_requests" {
-  default     = false
-  description = "Whether to enable a rule for counting the requests coming from Switzerland"
-  type        = bool
-}
-
-variable "count_ch_priority" {
-  default     = 40
-  description = "The priority for counting requests coming from CH"
-  type        = number
-}
-
-variable "count_ch_limit" {
-  default     = 300
-  description = "The limit for the 'emergency button' rule - not applied if set to 0"
-  type        = number
-}
-
-variable "search_limitation" {
+variable "limit_search_requests_by_countries" {
   default = {
-    limit        = 0
-    country_code = []
+    limit         = 100
+    country_codes = []
   }
-  description = "The blocking limit for calls to /search for countries NOT in the country_code list - this value needs to be lower than the everybody else - not applied if the limit is set to 0"
+  description = "Limit requests on the path /search that comes from the specified list of country_codes. Rule not deployed if list of countries is empty."
   type = object({
-    limit        = number
-    country_code = set(string)
+    limit         = optional(number, 100)
+    country_codes = set(string)
   })
+}
+
+variable "block_uri_path_string" {
+  default     = []
+  description = "Allow to block specific strings, defining the positional constraint of the string."
+  type = list(object({
+    name                  = string
+    priority              = optional(number, 71)
+    positional_constraint = optional(string, "EXACTLY")
+    search_string         = string
+  }))
+  validation {
+    condition     = alltrue([for uri in var.block_uri_path_string : uri.priority >= 71 && uri.priority < 90 && contains(["EXACTLY", "STARTS_WITH", "ENDS_WITH", "CONTAINS", "CONTAINS_WORD"], uri.positional_constraint)])
+    error_message = "var.block_uri_path_string.priority must be between 71 and 89"
+  }
 }
 
 variable "block_articles" {
   default     = []
-  description = "The list of articles to block from some countries"
+  description = "The list of articles to block from some country_codes"
   type = list(object({
-    name         = string
-    priority     = number
-    articles     = set(string)
-    country_code = set(string)
+    name          = string
+    priority      = number
+    articles      = set(string)
+    country_codes = set(string)
   }))
   # Example
   # [
@@ -212,49 +244,39 @@ variable "block_articles" {
   #       "/story/17703007",
   #       "-930543720570"
   #     ]
-  #     country_code = ["GB"]
-  #     priority     = 10
+  #     country_codes = ["GB"]
+  #     priority     = 90
   #   },
   #   ...
   # ]
+  validation {
+    condition     = alltrue([for uri in var.block_articles : uri.priority >= 90 && uri.priority < 110])
+    error_message = "var.block_articles.priority must be between 90 and 109"
+  }
 }
 
 variable "block_regex_pattern" {
   default     = {}
-  description = "The list of regex to block from some countries"
+  description = "Regex to block articles coming from a list of country_codes"
   type = map(object({
-    description  = string
-    priority     = number
-    country_code = set(string)
-    regex_string = string
+    description   = string
+    priority      = number
+    country_codes = set(string)
+    regex_string  = string
   }))
   # Example
   # {
   #   List_of_Article_to_Block_from_USA = {
   #     description  = "List of Article to Block from USA"
-  #     priority     = 12
-  #     country_code = ["US"]
+  #     priority     = 110
+  #     country_codes = ["US"]
   #     regex_string = "\\/content\\/(168154293778|199781524264|295880478843|456984065155|521246040231|548039927522|770770342355|850519746098|857984311223|875532264517|892009682269|961874634370)$"
   #   }
   # }
-}
-
-variable "allowed_partners" {
-  default     = []
-  description = "Allowed partner host headers"
-  type = list(object({
-    name     = string
-    priority = number
-    hostname = set(string)
-  }))
-  # Example
-  # [
-  #   { name     = "Allow_partner-xxxxx"
-  #     priority = 5
-  #     hostname = ["partner-xxxxx.yyyyy.domain.ch"]
-  #   },
-  #   ...
-  # ]
+  validation {
+    condition     = alltrue([for uri in var.block_regex_pattern : uri.priority >= 110 && uri.priority < 130])
+    error_message = "var.block_regex_pattern.priority must be between 110 and 129"
+  }
 }
 
 # LOGS
@@ -266,12 +288,12 @@ variable "enable_logging" {
 }
 
 variable "deploy_athena_queries" {
-  description = "Enables the deployment of the athena presaved queries to easily access the logs generated by waf"
+  description = "Enables the deployment of the athena pre-saved queries to easily access the logs generated by waf"
   default     = true
   type        = bool
 }
 
-variable "logs_bucket_name" {
+variable "logs_bucket_name_override" {
   description = "Override the default bucket name for waf logs. Default name: `aws-waf-logs-<lower(var.waf_scope)>-<data.aws_caller_identity.current.account_id>"
   default     = null
   type        = string

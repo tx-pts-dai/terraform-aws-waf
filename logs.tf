@@ -75,7 +75,7 @@ resource "aws_athena_named_query" "first_logs_query" {
 }
 
 resource "aws_s3_bucket" "logs" {
-  bucket        = coalesce(var.logs_bucket_name, "aws-waf-logs-${var.waf_name}-${data.aws_caller_identity.current.account_id}")
+  bucket        = coalesce(var.logs_bucket_name_override, "aws-waf-logs-${var.waf_name}-${data.aws_caller_identity.current.account_id}")
   force_destroy = true
 }
 
