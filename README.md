@@ -56,7 +56,8 @@ INFO: for cloudfront the aws provider should be in us-west-1 region.
 
 ```HCL
 module "waf" {
-  source = "./terraform-aws-waf"
+  source = "tx-pts-dai/waf/aws"
+  version = "~> 0.x"
   providers = {
     aws = aws.us
   }
