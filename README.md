@@ -8,20 +8,23 @@ This module create the AWS WAF Web ACLs and AWS WAF IP sets necessary to protect
 
 It's designed to propose the following rules:
 
-- Allow all requests comming from own AWS account (IP list)
-- Allow all requests comming from list of IPv4 (IP list)
-- Allow all requests comming from list of IPv6 (IP list)
-- Allow all requests comming from partner (detect "host" header)
-- (optionally) allow requests from Oracle Data Cloud Crawler
-- (optionally) allow requests from Google bots
-- AWS managed rules
-- AWS managed count rules
-- Limit requests starting with "/search"
-- (optionally) limit requests based on uri path
-- Block some articles for some coutries
-- Limit requests per country_codes
-- Limit not in limited country_codes (everybody_else)
-- Count Swiss requests
+|Priority|Rule Name|Notes|
+|----------|----------|------|
+|0 | whitelisted_ips_v4| Automatically donwload and whitelist bots IPV4s (see variables) and whitelist any list of IPV4 ranges|
+|1 | whitelisted_ips_v6| Automatically donwload and whitelist bots IPV6s (see variables) and whitelist any list of IPV6 ranges|
+|2 | whitelisted_hostnames| Whitelisted host headers. Example: ['partner-xxxxx.yyyyy.domain.ch']|
+|3 | rate_limit_everything_apart_from_CH| This rule is meant to be a failsafe switch in case of attack. Change "count" to "block" in the console if you are under attack and want to rate limit to a low number of requests every country except Switzerland |
+|4 | count_requests_from_ch| |
+|5-9 | | Free priority range for additional rules |
+|10-19 | AWS Managed rule groups | Each group could containt multiple labels, please refer to the [doc](https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-list.html)|
+|20-29 | AWS managed rule labels| For a list of labels is possibile to define an action: block, captcha or challenge. In all cases is possible to define a rate limit or directly apply the action |
+|30-49 | country_rates| Geografical rules|
+|50 | everybody_else_limit| The blocking limit for all country_codes which are not covered by the country_rates rule|
+|60-69 | AWS managed rule labels| Additional priority range reserved for AWS Managed rule labels |
+|70 | limit_search_requests_by_countries| |
+|71-89 | block_uri_path_string| |
+|90-109 | block_articles| |
+|110-129 | block_regex_pattern| |
 
 ## Waf logging
 
@@ -54,20 +57,80 @@ INFO: for cloudfront the aws provider should be in us-west-1 region.
 
 ```HCL
 module "waf" {
+  source = "./terraform-aws-waf"
   providers = {
     aws = aws.us
   }
-
-  self_ips                = module.cf_extractor.public_ips # ie. NAT gateways
-  allowed_ips             = var.waf_allowed_ips
-  whitelisted_ips_v6          = var.waf_whitelisted_ips_v6
-  country_rates           = var.waf_country_rates
-  block_articles          = var.waf_block_articles
-  aws_managed_count_rules = var.waf_aws_managed_rule_lables
-  whitelisted_hostnames        = var.waf_whitelisted_hostnames
-  everybody_else_limit    = var.waf_everybody_else_limit
-  limit_search_requests_by_countries       = var.waf_limit_search_requests_by_countries
+  # Required variables: None
+  # Non required variables"
+  waf_name                          = "cloudfront-waf"
+  waf_scope                         = "CLOUDFRONT"
+  waf_logs_retention                = 7
+  enable_oracle_crawler_whitelist   = true
+  oracle_data_cloud_crawlers_url    = "https://www.oracle.com/corporate/acquisitions/grapeshot/crawler.html"
+  enable_google_bots_whitelist      = true
+  google_bots_url                   = "https://developers.google.com/search/apis/ipranges/googlebot.json"
+  enable_parsely_crawlers_whitelist = false
+  parsely_crawlers_url              = "https://www.parse.ly/static/data/crawler-ips.json"
+  enable_k6_whitelist               = false
+  k6_ip_ranges_url                  = "https://ip-ranges.amazonaws.com/ip-ranges.json"
+  whitelisted_ips_v4                = ["1.1.1.1/16", "255.255.255.255/32"]
+  whitelisted_ips_v6                = []
+  whitelisted_hostnames             = ["partner-xxxxx.yyyyy.domain.ch"]
+  aws_managed_rule_groups = [
+    {
+      name     = "AWSManagedRulesAnonymousIpList" # Full list of labels from this group: https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-ip-rep.html
+      priority = 10
+    },
+    {
+      name     = "AWSManagedRulesAmazonIpReputationList" # Full list of labels from this group: https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-ip-rep.html
+      priority = 11
+    }
+  ]
+  aws_managed_rule_lables = [
+    {
+      name     = "aws_managed_rule_low_limit"
+      labels   = ["awswaf:managed:aws:anonymous-ip-list:AnonymousIPList", "awswaf:managed:aws:amazon-ip-list:AWSManagedIPReputationList", "awswaf:managed:aws:amazon-ip-list:AWSManagedReconnaissanceList", "awswaf:managed:aws:amazon-ip-list:AWSManagedIPDDoSList"]
+      priority = 20
+    },
+    {
+      name     = "aws_managed_rule_high_limit"
+      labels   = ["awswaf:managed:aws:anonymous-ip-list:HostingProviderIPList"]
+      limit    = 750
+      priority = 21
+    },
+  ]
+  count_requests_from_ch = false
+  country_rates = [
+    { name          = "Group_1-CH"
+      limit         = 50000
+      country_codes = ["CH"]
+      priority      = 30
+    },
+    { name          = "Group_2-DE_AT_FR"
+      limit         = 4000
+      country_codes = ["AT", "FR", "DE"]
+      priority      = 31
+    },
+    { name          = "Very_slow"
+      limit         = 100
+      country_codes = ["AR", "BD", "BR", "KH", "CN", "CO", "EC", "IN", "ID", "MX", "NP", "PK", "RU", "SG", "TR", "UA", "AE", "ZM", "VN"]
+      priority      = 35
+    }
+  ]
+  everybody_else_limit = 0
+  limit_search_requests_by_countries = {
+    limit         = 100
+    country_codes = ["CH"]
+  }
+  block_uri_path_string     = []
+  block_articles            = []
+  block_regex_pattern       = {}
+  enable_logging            = false
+  deploy_athena_queries     = true
+  logs_bucket_name_override = null
 }
+
 ```
 
 For a list of all variables please refer to: [terraform-dock](terraform-docs.md)

@@ -299,7 +299,7 @@ variable "deploy_athena_queries" {
   type        = bool
 }
 
-variable "logs_bucket_name" {
+variable "logs_bucket_name_override" {
   description = "Override the default bucket name for waf logs. Default name: `aws-waf-logs-<lower(var.waf_scope)>-<data.aws_caller_identity.current.account_id>"
   default     = null
   type        = string

@@ -205,10 +205,10 @@ resource "aws_wafv2_web_acl" "waf" {
   }
 
   # This rule is meant to be a failsafe switch in case of attack
-  # Change "count" to "block" if you are under attack and want to
-  # rate limit to a low number of requests every country apart from Switzerland
+  # Change "count" to "block" in the console if you are under attack and want to
+  # rate limit to a low number of requests every country except Switzerland
   rule {
-    name     = "Rate_limit_everything_apart_from_CH"
+    name     = "rate_limit_everything_apart_from_CH"
     priority = 3
     action {
       count {}
@@ -237,7 +237,7 @@ resource "aws_wafv2_web_acl" "waf" {
     }
     visibility_config {
       cloudwatch_metrics_enabled = true
-      metric_name                = "Rate_limit_everything_apart_from_CH"
+      metric_name                = "rate_limit_everything_apart_from_CH"
       sampled_requests_enabled   = true
     }
   }
