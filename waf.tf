@@ -490,7 +490,7 @@ resource "aws_wafv2_web_acl" "waf" {
             not_statement {
               statement {
                 geo_match_statement {
-                  country_codes = local.everybody_else_exlude_country_codes
+                  country_codes = local.everybody_else_exclude_country_codes
                   dynamic "forwarded_ip_config" {
                     for_each = var.waf_scope == "REGIONAL" ? [1] : []
                     content {
