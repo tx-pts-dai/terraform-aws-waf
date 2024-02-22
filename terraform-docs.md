@@ -66,17 +66,16 @@ No modules.
 | enable\_logging | Enable waf logs. | `bool` | `false` | no |
 | enable\_oracle\_crawler\_whitelist | Whitelist the Oracle Data Cloud Crawler IPs. (https://www.oracle.com/corporate/acquisitions/grapeshot/crawler.html) | `bool` | `true` | no |
 | enable\_parsely\_crawlers\_whitelist | Whitelist the Parse.ly crawler IPs. (https://www.parse.ly/help/integration/crawler) | `bool` | `false` | no |
-| everybody\_else\_limit | The blocking limit for all country\_codes which are not covered by country\_rates - not applied if it set to 0 | `number` | `0` | no |
+| everybody\_else\_limit | The limit for all country\_codes which are not covered by country\_rates - not applied if it set to 0 | `number` | `0` | no |
 | google\_bots\_url | The url where to get the Google bots IPs list. In case of problems the default url can be overridden. | `string` | `"https://developers.google.com/search/apis/ipranges/googlebot.json"` | no |
 | k6\_ip\_ranges\_url | The url where to get the K6 load generators IPs list. In case of problems the default url can be overridden. | `string` | `"https://ip-ranges.amazonaws.com/ip-ranges.json"` | no |
 | limit\_search\_requests\_by\_countries | Limit requests on the path /search that comes from the specified list of country\_codes. Rule not deployed if list of countries is empty. | ```object({ limit = optional(number, 100) country_codes = set(string) })``` | ```{ "country_codes": [], "limit": 100 }``` | no |
-| logs\_bucket\_name | Override the default bucket name for waf logs. Default name: `aws-waf-logs-<lower(var.waf_scope)>-<data.aws_caller_identity.current.account_id>` | `string` | `null` | no |
+| logs\_bucket\_name\_override | Override the default bucket name for waf logs. Default name: `aws-waf-logs-<lower(var.waf_scope)>-<data.aws_caller_identity.current.account_id>` | `string` | `null` | no |
 | oracle\_data\_cloud\_crawlers\_url | The url whre to get the Oracle Data Cloud Crawler IPs list. In case of problems the default url can be overridden. | `string` | `"https://www.oracle.com/corporate/acquisitions/grapeshot/crawler.html"` | no |
 | parsely\_crawlers\_url | The url where to get the Parse.ly crawler IPs list. In case of problems the default url can be overridden. | `string` | `"https://www.parse.ly/static/data/crawler-ips.json"` | no |
 | waf\_logs\_retention | Retention time (in days) of waf logs | `number` | `7` | no |
 | waf\_name | The name for WAF | `string` | `"cloudfront-waf"` | no |
 | waf\_scope | The scope of the deployed waf. Available options [CLOUDFRONT,REGIONAL] | `string` | `"CLOUDFRONT"` | no |
-| whitelisted\_hostnames | Whitelisted host headers. Example: ['partner-xxxxx.yyyyy.domain.ch'] | `list(string)` | `[]` | no |
 | whitelisted\_ips\_v4 | List of enterprise IP ranges to be whitelisted. Set to empty list to disable the whitelisting | `list(string)` | `[]` | no |
 | whitelisted\_ips\_v6 | The IPv6 to allow | `list(string)` | `[]` | no |
 

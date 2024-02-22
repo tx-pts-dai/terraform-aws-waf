@@ -1,10 +1,9 @@
 ## Priorities:
 # 0: whitelisted_ips_v4
 # 1: whitelisted_ips_v6
-# 2: whitelisted_hostnames
-# 3: Rate_limit_everything_apart_from_CH
-# 4: count_requests_from_ch
-# 5-9: free
+# 2: Rate_limit_everything_apart_from_CH
+# 3: count_requests_from_ch
+# 4-9: free
 # 10-19: AWS Managed rule groups (these are the one that only counts and labels requests
 # 20-29: AWS managed rule labels rate limit
 # 30-49: country_rates
@@ -143,73 +142,12 @@ resource "aws_wafv2_web_acl" "waf" {
     }
   }
 
-  dynamic "rule" {
-    for_each = length(var.whitelisted_hostnames) > 0 ? [1] : []
-    content {
-      name     = "whitelisted_hostnames"
-      priority = 2
-      action {
-        allow {}
-      }
-      dynamic "statement" {
-        # or_statement needs 2 arguments so handle the case when only one article is in the rule
-        for_each = length(var.whitelisted_hostnames) > 1 ? [1] : [] # if more than one element use or_statement
-        content {
-          or_statement {
-            dynamic "statement" {
-              for_each = var.whitelisted_hostnames
-              content {
-                byte_match_statement {
-                  positional_constraint = "EXACTLY"
-                  search_string         = statement.value
-                  field_to_match {
-                    single_header {
-                      name = "host"
-                    }
-                  }
-                  text_transformation {
-                    priority = 0
-                    type     = "NONE"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-      dynamic "statement" {
-        # or_statement needs 2 arguments so handle the case when only one article is in the rule
-        for_each = length(var.whitelisted_hostnames) == 1 ? var.whitelisted_hostnames : [] # if just one element skip or_statement
-        content {
-          byte_match_statement {
-            positional_constraint = "EXACTLY"
-            search_string         = statement.value
-            field_to_match {
-              single_header {
-                name = "host"
-              }
-            }
-            text_transformation {
-              priority = 0
-              type     = "NONE"
-            }
-          }
-        }
-      }
-      visibility_config {
-        cloudwatch_metrics_enabled = true
-        metric_name                = "whitelisted_hostnames"
-        sampled_requests_enabled   = true
-      }
-    }
-  }
-
   # This rule is meant to be a failsafe switch in case of attack
   # Change "count" to "block" in the console if you are under attack and want to
   # rate limit to a low number of requests every country except Switzerland
   rule {
     name     = "rate_limit_everything_apart_from_CH"
-    priority = 3
+    priority = 2
     action {
       count {}
     }
@@ -246,7 +184,7 @@ resource "aws_wafv2_web_acl" "waf" {
     for_each = var.count_requests_from_ch ? [1] : []
     content {
       name     = "Switzerland"
-      priority = 4
+      priority = 3
       action {
         count {}
       }

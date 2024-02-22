@@ -97,12 +97,6 @@ variable "whitelisted_ips_v6" {
   }
 }
 
-variable "whitelisted_hostnames" {
-  default     = []
-  description = "Whitelisted host headers. Example: ['partner-xxxxx.yyyyy.domain.ch']"
-  type        = list(string)
-}
-
 variable "aws_managed_rule_groups" {
   description = "AWS Managed Rule Groups counting and labeling requests. The labels applied by these groups can be specified in aws_managed_rule_lables to rate limit requests. Available groups are described here https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-list.html. Not applicable for var.waf_scope = REGIONAL"
   type = list(object({

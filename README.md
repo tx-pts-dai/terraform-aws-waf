@@ -12,10 +12,9 @@ It's designed to propose the following rules:
 |----------|----------|------|
 |0 | whitelisted_ips_v4| Automatically donwload and whitelist bots IPV4s (see variables) and whitelist any list of IPV4 ranges|
 |1 | whitelisted_ips_v6| Automatically donwload and whitelist bots IPV6s (see variables) and whitelist any list of IPV6 ranges|
-|2 | whitelisted_hostnames| Whitelisted host headers. Example: ['partner-xxxxx.yyyyy.domain.ch']|
-|3 | rate_limit_everything_apart_from_CH| This rule is meant to be a failsafe switch in case of attack. Change "count" to "block" in the console if you are under attack and want to rate limit to a low number of requests every country except Switzerland |
-|4 | count_requests_from_ch| |
-|5-9 | | Free priority range for additional rules |
+|2 | rate_limit_everything_apart_from_CH| This rule is meant to be a failsafe switch in case of attack. Change "count" to "block" in the console if you are under attack and want to rate limit to a low number of requests every country except Switzerland |
+|3 | count_requests_from_ch| |
+|4-9 | | Free priority range for additional rules |
 |10-19 | AWS Managed rule groups | Each group could containt multiple labels, please refer to the [doc](https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-list.html)|
 |20-29 | AWS managed rule labels| For a list of labels is possibile to define an action: block, captcha or challenge. In all cases is possible to define a rate limit or directly apply the action |
 |30-49 | country_rates| Geografical rules|
