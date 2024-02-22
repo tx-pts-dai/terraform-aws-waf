@@ -21,7 +21,7 @@ variable "waf_logs_retention" {
 }
 
 ## Automatic whitelisting of bots and crawlers:
-# These lists will be dynamically compiled and concatenate to the whiteliste IPv4 and IPv6 lists
+# These lists will be dynamically compiled and concatenate to the whitelisted IPv4 and IPv6 lists
 variable "enable_oracle_crawler_whitelist" {
   default     = true
   description = "Whitelist the Oracle Data Cloud Crawler IPs. (https://www.oracle.com/corporate/acquisitions/grapeshot/crawler.html)"
