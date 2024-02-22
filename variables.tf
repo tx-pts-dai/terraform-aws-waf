@@ -197,7 +197,7 @@ variable "country_rates" {
 
 variable "everybody_else_limit" {
   default     = 0
-  description = "The blocking limit for all country_codes which are not covered by country_rates - not applied if it set to 0"
+  description = "The limit for all country_codes which are not covered by country_rates - not applied if it set to 0"
   type        = number
 }
 
