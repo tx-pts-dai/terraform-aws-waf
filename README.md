@@ -133,7 +133,7 @@ module "waf" {
 
 ```
 
-For a list of all variables please refer to: [terraform-dock](terraform-docs.md)
+For a list of all variables please refer to [the terraform-docs](terraform-docs.md) of the module
 
 ### Waf scope: CLOUDFRONT or REGIONAL
 
