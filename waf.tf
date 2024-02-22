@@ -276,15 +276,32 @@ resource "aws_wafv2_web_acl" "waf" {
       name     = rule.value.name
       priority = rule.value.priority
       override_action {
-        count {}
-        # dynamic "count" {
-        #   for_each = rule.value.override_group_action == "count" ? [1] : []
-        #   content {}
-        # }
-        # dynamic "block" {
-        #   for_each = rule.value.override_group_action == "block" ? [1] : []
-        #   content {}
-        # }
+        count {} # valid blocks: count or none
+        # cannot be block. To block we need a rule action override for each of the labels inside the group under managed_rule_group_statement
+        #   rule_action_override {
+        #     - name = "AWSManagedIPDDoSList" -> null
+
+        #     - action_to_use {
+        #         - block {
+        #           }
+        #       }
+        #   }
+        # - rule_action_override {
+        #     - name = "AWSManagedIPReputationList" -> null
+
+        #     - action_to_use {
+        #         - block {
+        #           }
+        #       }
+        #   }
+        # - rule_action_override {
+        #     - name = "AWSManagedReconnaissanceList" -> null
+
+        #     - action_to_use {
+        #         - block {
+        #           }
+        #       }
+        #   }
       }
       statement {
         managed_rule_group_statement {
@@ -306,41 +323,99 @@ resource "aws_wafv2_web_acl" "waf" {
       name     = rule.value.name
       priority = rule.value.priority
       action {
-        block {
-          custom_response {
-            custom_response_body_key = local.rate_limit_response_key
-            response_code            = 429
+        dynamic "block" {
+          for_each = rule.value.action == "block" ? [1] : []
+          content {
+            custom_response {
+              custom_response_body_key = local.rate_limit_response_key
+              response_code            = 429
+            }
+          }
+        }
+        dynamic "captcha" {
+          for_each = rule.value.action == "captcha" ? [1] : []
+          content {}
+        }
+        dynamic "challenge" {
+          for_each = rule.value.action == "challenge" ? [1] : []
+          content {}
+        }
+      }
+      dynamic "captcha_config" {
+        for_each = rule.value.action == "captcha" ? [1] : []
+        content {
+          immunity_time_property {
+            immunity_time = rule.value.immunity_seconds
           }
         }
       }
+      # dynamic "challenge_config" { 
+      # # avaliable in the console but seems to be not supported on tf (?) 
+      # # even if is mentioned in the docs https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_web_acl#challenge_config-block
+      # # and is in an open issue https://github.com/hashicorp/terraform-provider-aws/issues/29071 
+      #   for_each = rule.value.action == "challenge" ? [1] : []
+      #   content {
+      #     immunity_time_property {
+      #       immunity_time = rule.value.immunity_seconds
+      #     }
+      #   }
+      # }
       statement {
-        rate_based_statement {
-          aggregate_key_type = "IP"
-          limit              = rule.value.limit
-          dynamic "scope_down_statement" {
-            # or_statement needs 2 arguments so handle the case when only one article is in the rule
-            for_each = length(rule.value.labels) > 1 ? [1] : [] # if more than one element use or_statement
-            content {
-              or_statement {
-                dynamic "statement" {
-                  for_each = rule.value.labels
-                  content {
-                    label_match_statement {
-                      scope = "LABEL"
-                      key   = statement.value
+        dynamic "or_statement" {
+          # or_statement needs 2 arguments so handle the case when only one label is in the rule
+          for_each = length(rule.value.labels) > 1 && !rule.value.enable_rate_limiting ? [1] : []
+          # if rate limiting is not enabled and more than one element use or_statement
+          content {
+            dynamic "statement" {
+              for_each = rule.value.labels
+              content {
+                label_match_statement {
+                  key   = statement.value
+                  scope = "LABEL"
+                }
+              }
+            }
+          }
+        }
+        dynamic "label_match_statement" {
+          # or_statement needs 2 arguments so handle the case when only one label is in the rule
+          for_each = length(rule.value.labels) == 1 && !rule.value.enable_rate_limiting ? rule.value.labels : []
+          # if rate limiting is not enabled and one element skip or_statement
+          content {
+            key   = label_match_statement.value
+            scope = "LABEL"
+          }
+        }
+        dynamic "rate_based_statement" {
+          for_each = rule.value.enable_rate_limiting ? [1] : [] # create rate_based_statement only if rate limiting is enabled
+          content {
+            aggregate_key_type = "IP"
+            limit              = rule.value.limit
+            dynamic "scope_down_statement" {
+              # or_statement needs 2 arguments so handle the case when only one label is in the rule
+              for_each = length(rule.value.labels) > 1 ? [1] : [] # if more than one element use or_statement
+              content {
+                or_statement {
+                  dynamic "statement" {
+                    for_each = rule.value.labels
+                    content {
+                      label_match_statement {
+                        scope = "LABEL"
+                        key   = statement.value
+                      }
                     }
                   }
                 }
               }
             }
-          }
-          dynamic "scope_down_statement" {
-            # or_statement needs 2 arguments so handle the case when only one article is in the rule
-            for_each = length(rule.value.labels) == 1 ? rule.value.labels : [] # if one element skip or_statement
-            content {
-              label_match_statement {
-                scope = "LABEL"
-                key   = scope_down_statement.value
+            dynamic "scope_down_statement" {
+              # or_statement needs 2 arguments so handle the case when only one label is in the rule
+              for_each = length(rule.value.labels) == 1 ? rule.value.labels : [] # if one element skip or_statement
+              content {
+                label_match_statement {
+                  scope = "LABEL"
+                  key   = scope_down_statement.value
+                }
               }
             }
           }

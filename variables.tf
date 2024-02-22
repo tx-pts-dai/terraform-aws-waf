@@ -8,6 +8,10 @@ variable "waf_scope" {
   default     = "CLOUDFRONT"
   description = "The scope of the deployed waf. Available options [CLOUDFRONT,REGIONAL]"
   type        = string
+  validation {
+    condition     = contains(["CLOUDFRONT", "REGIONAL"], var.waf_scope)
+    error_message = "var.waf_scope can be either CLOUDFRONT or REGIONAL"
+  }
 }
 
 variable "waf_logs_retention" {
@@ -76,7 +80,7 @@ variable "whitelisted_ips_v4" {
     condition = alltrue([
       for ip in var.whitelisted_ips_v4 : can(regex("^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}/\\d{1,2}", ip))
     ])
-    error_message = "whitelisted_ips_v4 must contain valid IP V4 ranges. Example: ['1.1.1.1/16', '255.255.255.255/32'"
+    error_message = "whitelisted_ips_v4 must contain valid IP V4 ranges with mask. Example: ['1.1.1.1/16', '255.255.255.255/32']"
   }
 }
 
@@ -95,19 +99,15 @@ variable "whitelisted_ips_v6" {
 
 variable "whitelisted_hostnames" {
   default     = []
-  description = "Whitelisted host headers"
+  description = "Whitelisted host headers. Example: ['partner-xxxxx.yyyyy.domain.ch']"
   type        = list(string)
-  # Example
-  # ["partner-xxxxx.yyyyy.domain.ch"]
 }
 
 variable "aws_managed_rule_groups" {
-  # All available groups are described here https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-list.html
-  description = "AWS Managed Rule Groups counting and labeling requests. The labels applied by these groups can be specified in aws_managed_rule_lables to rate limit requests. Not applicable for var.waf_scope = REGIONAL"
+  description = "AWS Managed Rule Groups counting and labeling requests. The labels applied by these groups can be specified in aws_managed_rule_lables to rate limit requests. Available groups are described here https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-list.html. Not applicable for var.waf_scope = REGIONAL"
   type = list(object({
-    name                  = string
-    priority              = number
-    override_group_action = optional(string, "count")
+    name     = string
+    priority = number
   }))
   default = [
     {
@@ -120,7 +120,7 @@ variable "aws_managed_rule_groups" {
     }
   ]
   validation {
-    condition     = alltrue([for group in var.aws_managed_rule_groups : group.priority >= 10 && group.priority < 19 && (group.override_group_action == "count" || group.override_group_action == "block")])
+    condition     = alltrue([for group in var.aws_managed_rule_groups : group.priority >= 10 && group.priority < 20])
     error_message = "var.aws_managed_rule_groups.priority must be bewteen 10 and 19. var.aws_managed_rule_groups.override_group_action should be either count or block"
   }
 }
@@ -128,16 +128,18 @@ variable "aws_managed_rule_groups" {
 variable "aws_managed_rule_lables" {
   description = "AWS Managed rules labels to rate limit. The group using this label must be specified in aws_managed_rule_groups in order to apply the label to incoming requests. Not applicable for var.waf_scope = REGIONAL"
   type = list(object({
-    name     = string
-    labels   = list(string)
-    limit    = number
-    priority = number
+    name                 = string
+    labels               = list(string)
+    enable_rate_limiting = optional(bool, true)      # if false all requests will be directly blocked
+    limit                = optional(number, 500)     # only used if enable_rate_limiting = true
+    action               = optional(string, "block") # possible actions: block, captcha, challenge
+    immunity_seconds     = optional(number, 300)     # only used if action is captcha (for challenge it's not currently allowed in tf, see waf.tf for more details). Immunity time in seconds after succesfully passing a challenge
+    priority             = number
   }))
   default = [
     {
       name     = "aws_managed_rule_low_limit"
       labels   = ["awswaf:managed:aws:anonymous-ip-list:AnonymousIPList", "awswaf:managed:aws:amazon-ip-list:AWSManagedIPReputationList", "awswaf:managed:aws:amazon-ip-list:AWSManagedReconnaissanceList", "awswaf:managed:aws:amazon-ip-list:AWSManagedIPDDoSList"]
-      limit    = 500
       priority = 20
     },
     {
@@ -148,8 +150,8 @@ variable "aws_managed_rule_lables" {
     },
   ]
   validation {
-    condition     = alltrue([for label in var.aws_managed_rule_lables : (label.priority >= 20 && label.priority < 30) || (label.priority >= 60 && label.priority < 69)])
-    error_message = "var.aws_managed_rule_lables.priority must be bewteen 20 and 29 or between 60 and 69"
+    condition     = alltrue([for rule in var.aws_managed_rule_lables : ((rule.priority >= 20 && rule.priority < 30) || (rule.priority >= 60 && rule.priority < 70) && contains(["block", "captcha", "challenge"], rule.action))])
+    error_message = "var.aws_managed_rule_lables.priority must be bewteen 20 and 29 or between 60 and 69. var.aws_managed_rule_lables.action must be either block, captcha or challenge"
   }
 }
 
@@ -161,7 +163,7 @@ variable "count_requests_from_ch" {
 
 variable "country_rates" {
   default     = []
-  description = "List of limits for gorups of countries. Available priorities: 30-49"
+  description = "List of limits for gorups of countries."
   type = list(object({
     name          = string
     limit         = number
@@ -213,15 +215,15 @@ variable "limit_search_requests_by_countries" {
 
 variable "block_uri_path_string" {
   default     = []
-  description = "Allow to block specific strings, defining the positional constraint of the string. Available priorities range 5-19"
+  description = "Allow to block specific strings, defining the positional constraint of the string."
   type = list(object({
     name                  = string
     priority              = optional(number, 71)
-    positional_constraint = optional(string, "EXACTLY") # Valid Values: EXACTLY | STARTS_WITH | ENDS_WITH | CONTAINS | CONTAINS_WORD
+    positional_constraint = optional(string, "EXACTLY")
     search_string         = string
   }))
   validation {
-    condition     = alltrue([for uri in var.block_uri_path_string : uri.priority >= 71 && uri.priority < 89])
+    condition     = alltrue([for uri in var.block_uri_path_string : uri.priority >= 71 && uri.priority < 90 && contains(["EXACTLY", "STARTS_WITH", "ENDS_WITH", "CONTAINS", "CONTAINS_WORD"], uri.positional_constraint)])
     error_message = "var.block_uri_path_string.priority must be bewteen 71 and 89"
   }
 }
@@ -254,14 +256,14 @@ variable "block_articles" {
   #   ...
   # ]
   validation {
-    condition     = alltrue([for uri in var.block_articles : uri.priority >= 90 && uri.priority < 109])
+    condition     = alltrue([for uri in var.block_articles : uri.priority >= 90 && uri.priority < 110])
     error_message = "var.block_articles.priority must be bewteen 90 and 109"
   }
 }
 
 variable "block_regex_pattern" {
   default     = {}
-  description = "The list of regex to block from some country_codes"
+  description = "Regex to block articles coming from a list of country_codes"
   type = map(object({
     description   = string
     priority      = number
@@ -278,7 +280,7 @@ variable "block_regex_pattern" {
   #   }
   # }
   validation {
-    condition     = alltrue([for uri in var.block_regex_pattern : uri.priority >= 110 && uri.priority < 129])
+    condition     = alltrue([for uri in var.block_regex_pattern : uri.priority >= 110 && uri.priority < 130])
     error_message = "var.block_regex_pattern.priority must be bewteen 110 and 129"
   }
 }
