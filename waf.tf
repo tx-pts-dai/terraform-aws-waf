@@ -9,7 +9,7 @@
 # 42: Rate_limit_everything_apart_from_CH
 # 43: count_requests_from_ch
 # 44-49: free
-# 50-59: AWS Managed rule groups (these are the one that only counts and labels requests
+# 50-59: AWS Managed rule groups (these are the ones that only count and label requests)
 # 60-69: AWS managed rule labels rate limit
 # 70-79: country_rates
 # 80: everybody_else_limit
