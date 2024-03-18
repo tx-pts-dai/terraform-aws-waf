@@ -1,18 +1,19 @@
 ## Priorities:
-# 0: whitelisted_ips_v4
-# 1: whitelisted_ips_v6
-# 2: Rate_limit_everything_apart_from_CH
-# 3: count_requests_from_ch
-# 4-9: free
-# 10-19: AWS Managed rule groups (these are the one that only counts and labels requests
-# 20-29: AWS managed rule labels rate limit
-# 30-49: country_rates
-# 50: everybody_else_limit
+# 0: limit_search_requests_by_countries
+# 1-9: block_uri_path_string
+# 10-19: block_articles
+# 20-29: block_regex_pattern
+# 30-39 free
+# 40: whitelisted_ips_v4
+# 41: whitelisted_ips_v6
+# 42: Rate_limit_everything_apart_from_CH
+# 43: count_requests_from_ch
+# 44-49: free
+# 50-59: AWS Managed rule groups (these are the one that only counts and labels requests
 # 60-69: AWS managed rule labels rate limit
-# 70: limit_search_requests_by_countries
-# 71-89: block_uri_path_string
-# 90-109: block_articles
-# 110-129: block_regex_pattern
+# 70-79: country_rates
+# 80: everybody_else_limit
+
 
 locals {
   everybody_else_exclude_country_codes = distinct(flatten([ # find all the country_codes mentioned in our rules
@@ -88,7 +89,7 @@ resource "aws_wafv2_web_acl" "waf" {
     for_each = length(local.group_whitelist_ipv4) == 0 ? [] : [1]
     content {
       name     = "whitelisted_ips_v4"
-      priority = 0
+      priority = 40
       action {
         allow {}
       }
@@ -117,7 +118,7 @@ resource "aws_wafv2_web_acl" "waf" {
     for_each = length(local.group_whitelist_ipv6) == 0 ? [] : [1]
     content {
       name     = "whitelisted_ips_v6"
-      priority = 1
+      priority = 41
       action {
         allow {}
       }
@@ -147,7 +148,7 @@ resource "aws_wafv2_web_acl" "waf" {
   # rate limit to a low number of requests every country except Switzerland
   rule {
     name     = "rate_limit_everything_apart_from_CH"
-    priority = 2
+    priority = 42
     action {
       count {}
     }
@@ -184,7 +185,7 @@ resource "aws_wafv2_web_acl" "waf" {
     for_each = var.count_requests_from_ch ? [1] : []
     content {
       name     = "Switzerland"
-      priority = 3
+      priority = 43
       action {
         count {}
       }
@@ -385,7 +386,7 @@ resource "aws_wafv2_web_acl" "waf" {
     for_each = var.everybody_else_limit == 0 ? [] : [1]
     content {
       name     = "Everybody_else"
-      priority = 50
+      priority = 80
       action {
         block {
           custom_response {
@@ -429,7 +430,7 @@ resource "aws_wafv2_web_acl" "waf" {
     for_each = length(var.limit_search_requests_by_countries.country_codes) > 0 ? [1] : []
     content {
       name     = "limit_search_requests_by_countries"
-      priority = 70
+      priority = 0
       action {
         block {
           custom_response {

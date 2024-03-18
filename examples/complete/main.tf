@@ -37,24 +37,24 @@ module "waf" {
   aws_managed_rule_groups = [
     {
       name     = "AWSManagedRulesAnonymousIpList" # Full list of labels from this group: https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-ip-rep.html
-      priority = 10
+      priority = 50
     },
     {
       name     = "AWSManagedRulesAmazonIpReputationList" # Full list of labels from this group: https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-ip-rep.html
-      priority = 11
+      priority = 59
     }
   ]
   aws_managed_rule_labels = [
     {
       name     = "aws_managed_rule_low_limit"
       labels   = ["awswaf:managed:aws:anonymous-ip-list:AnonymousIPList", "awswaf:managed:aws:amazon-ip-list:AWSManagedIPReputationList", "awswaf:managed:aws:amazon-ip-list:AWSManagedReconnaissanceList", "awswaf:managed:aws:amazon-ip-list:AWSManagedIPDDoSList"]
-      priority = 20
+      priority = 60
     },
     {
       name     = "aws_managed_rule_high_limit"
       labels   = ["awswaf:managed:aws:anonymous-ip-list:HostingProviderIPList"]
       limit    = 750
-      priority = 21
+      priority = 61
     },
   ]
   count_requests_from_ch = false
@@ -63,19 +63,19 @@ module "waf" {
       name          = "Group_1-CH"
       limit         = 50000
       country_codes = ["CH"]
-      priority      = 30
+      priority      = 70
     },
     {
       name          = "Group_2-DE_AT_FR"
       limit         = 4000
       country_codes = ["AT", "FR", "DE"]
-      priority      = 31
+      priority      = 71
     },
     {
       name          = "Very_slow"
       limit         = 100
       country_codes = ["AR", "BD", "BR", "KH", "CN", "CO", "EC", "IN", "ID", "MX", "NP", "PK", "RU", "SG", "TR", "UA", "AE", "ZM", "VN"]
-      priority      = 35
+      priority      = 72
     }
   ]
   everybody_else_limit = 0
