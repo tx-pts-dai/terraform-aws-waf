@@ -74,7 +74,7 @@ variable "k6_ip_ranges_url" {
 
 variable "whitelisted_ips_v4" {
   default     = []
-  description = "List of enterprise IP ranges to be whitelisted. Set to empty list to disable the whitelisting"
+  description = "List of IP ranges to be whitelisted. Set to empty list to disable the whitelisting"
   type        = list(string)
   validation {
     condition = alltrue([
@@ -86,7 +86,7 @@ variable "whitelisted_ips_v4" {
 
 variable "whitelisted_ips_v6" {
   default     = []
-  description = "The IPv6 to allow"
+  description = "List of IP ranges to be whitelisted. Set to empty list to disable the whitelisting"
   type        = list(string)
   validation {
     # Not the "real" regexp for ipv6. The right one has around 1000 characters...
@@ -106,15 +106,15 @@ variable "aws_managed_rule_groups" {
   default = [
     {
       name     = "AWSManagedRulesAnonymousIpList" # Full list of labels from this group: https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-ip-rep.html
-      priority = 10
+      priority = 50
     },
     {
       name     = "AWSManagedRulesAmazonIpReputationList" # Full list of labels from this group: https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-ip-rep.html
-      priority = 11
+      priority = 51
     }
   ]
   validation {
-    condition     = alltrue([for group in var.aws_managed_rule_groups : group.priority >= 10 && group.priority < 20])
+    condition     = alltrue([for group in var.aws_managed_rule_groups : group.priority >= 50 && group.priority < 60])
     error_message = "var.aws_managed_rule_groups.priority must be between 10 and 19. var.aws_managed_rule_groups.override_group_action should be either count or block"
   }
 }
@@ -134,18 +134,18 @@ variable "aws_managed_rule_labels" {
     {
       name     = "aws_managed_rule_low_limit"
       labels   = ["awswaf:managed:aws:anonymous-ip-list:AnonymousIPList", "awswaf:managed:aws:amazon-ip-list:AWSManagedIPReputationList", "awswaf:managed:aws:amazon-ip-list:AWSManagedReconnaissanceList", "awswaf:managed:aws:amazon-ip-list:AWSManagedIPDDoSList"]
-      priority = 20
+      priority = 60
     },
     {
       name     = "aws_managed_rule_high_limit"
       labels   = ["awswaf:managed:aws:anonymous-ip-list:HostingProviderIPList"]
       limit    = 750
-      priority = 21
+      priority = 61
     },
   ]
   validation {
-    condition     = alltrue([for rule in var.aws_managed_rule_labels : ((rule.priority >= 20 && rule.priority < 30) || (rule.priority >= 60 && rule.priority < 70) && contains(["block", "captcha", "challenge"], rule.action))])
-    error_message = "var.aws_managed_rule_labels.priority must be between 20 and 29 or between 60 and 69. var.aws_managed_rule_labels.action must be either block, captcha or challenge"
+    condition     = alltrue([for rule in var.aws_managed_rule_labels : ((rule.priority >= 60 && rule.priority < 70) || (rule.priority > 80) && contains(["block", "captcha", "challenge"], rule.action))])
+    error_message = "var.aws_managed_rule_labels.priority must be between 60 and 69 or greater than 80. var.aws_managed_rule_labels.action must be either block, captcha or challenge"
   }
 }
 
@@ -184,8 +184,8 @@ variable "country_rates" {
   #   }
   # ]
   validation {
-    condition     = alltrue([for uri in var.country_rates : uri.priority >= 30 && uri.priority < 50])
-    error_message = "var.country_rates.priority must be between 20 and 49"
+    condition     = alltrue([for uri in var.country_rates : uri.priority >= 70 && uri.priority < 80])
+    error_message = "var.country_rates.priority must be between 70 and 80"
   }
 }
 
@@ -212,13 +212,13 @@ variable "block_uri_path_string" {
   description = "Allow to block specific strings, defining the positional constraint of the string."
   type = list(object({
     name                  = string
-    priority              = optional(number, 71)
+    priority              = optional(number, 1)
     positional_constraint = optional(string, "EXACTLY")
     search_string         = string
   }))
   validation {
-    condition     = alltrue([for uri in var.block_uri_path_string : uri.priority >= 71 && uri.priority < 90 && contains(["EXACTLY", "STARTS_WITH", "ENDS_WITH", "CONTAINS", "CONTAINS_WORD"], uri.positional_constraint)])
-    error_message = "var.block_uri_path_string.priority must be between 71 and 89"
+    condition     = alltrue([for uri in var.block_uri_path_string : uri.priority >= 1 && uri.priority < 9 && contains(["EXACTLY", "STARTS_WITH", "ENDS_WITH", "CONTAINS", "CONTAINS_WORD"], uri.positional_constraint)])
+    error_message = "var.block_uri_path_string.priority must be between 1 and 9"
   }
 }
 
@@ -250,8 +250,8 @@ variable "block_articles" {
   #   ...
   # ]
   validation {
-    condition     = alltrue([for uri in var.block_articles : uri.priority >= 90 && uri.priority < 110])
-    error_message = "var.block_articles.priority must be between 90 and 109"
+    condition     = alltrue([for uri in var.block_articles : uri.priority >= 10 && uri.priority < 19])
+    error_message = "var.block_articles.priority must be between 10 and 19"
   }
 }
 
@@ -274,8 +274,8 @@ variable "block_regex_pattern" {
   #   }
   # }
   validation {
-    condition     = alltrue([for uri in var.block_regex_pattern : uri.priority >= 110 && uri.priority < 130])
-    error_message = "var.block_regex_pattern.priority must be between 110 and 129"
+    condition     = alltrue([for uri in var.block_regex_pattern : uri.priority >= 20 && uri.priority < 30])
+    error_message = "var.block_regex_pattern.priority must be between 20 and 29"
   }
 }
 
