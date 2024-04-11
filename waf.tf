@@ -143,44 +143,6 @@ resource "aws_wafv2_web_acl" "waf" {
     }
   }
 
-  # This rule is meant to be a failsafe switch in case of attack
-  # Change "count" to "block" in the console if you are under attack and want to
-  # rate limit to a low number of requests every country except Switzerland
-  rule {
-    name     = "rate_limit_everything_apart_from_CH"
-    priority = 42
-    action {
-      count {}
-    }
-    statement {
-      rate_based_statement {
-        aggregate_key_type = "IP"
-        limit              = 300
-        scope_down_statement {
-          not_statement {
-            statement {
-              geo_match_statement {
-                country_codes = ["CH"]
-                dynamic "forwarded_ip_config" {
-                  for_each = var.waf_scope == "REGIONAL" ? [1] : []
-                  content {
-                    header_name       = "X-Forwarded-For"
-                    fallback_behavior = "MATCH"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-    visibility_config {
-      cloudwatch_metrics_enabled = true
-      metric_name                = "rate_limit_everything_apart_from_CH"
-      sampled_requests_enabled   = true
-    }
-  }
-
   dynamic "rule" {
     for_each = var.count_requests_from_ch ? [1] : []
     content {
@@ -232,118 +194,6 @@ resource "aws_wafv2_web_acl" "waf" {
   }
 
   dynamic "rule" {
-    for_each = var.aws_managed_rule_labels
-    content {
-      name     = rule.value.name
-      priority = rule.value.priority
-      action {
-        dynamic "block" {
-          for_each = rule.value.action == "block" ? [1] : []
-          content {
-            custom_response {
-              custom_response_body_key = local.rate_limit_response_key
-              response_code            = 429
-            }
-          }
-        }
-        dynamic "captcha" {
-          for_each = rule.value.action == "captcha" ? [1] : []
-          content {}
-        }
-        dynamic "challenge" {
-          for_each = rule.value.action == "challenge" ? [1] : []
-          content {}
-        }
-      }
-      dynamic "captcha_config" {
-        for_each = rule.value.action == "captcha" ? [1] : []
-        content {
-          immunity_time_property {
-            immunity_time = rule.value.immunity_seconds
-          }
-        }
-      }
-      # dynamic "challenge_config" { 
-      # # available in the console but seems to be not supported on tf (?) 
-      # # even if is mentioned in the docs https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_web_acl#challenge_config-block
-      # # and is in an open issue https://github.com/hashicorp/terraform-provider-aws/issues/29071 
-      #   for_each = rule.value.action == "challenge" ? [1] : []
-      #   content {
-      #     immunity_time_property {
-      #       immunity_time = rule.value.immunity_seconds
-      #     }
-      #   }
-      # }
-      statement {
-        dynamic "or_statement" {
-          # or_statement needs 2 arguments so handle the case when only one label is in the rule
-          for_each = length(rule.value.labels) > 1 && !rule.value.enable_rate_limiting ? [1] : []
-          # if rate limiting is not enabled and more than one element use or_statement
-          content {
-            dynamic "statement" {
-              for_each = rule.value.labels
-              content {
-                label_match_statement {
-                  key   = statement.value
-                  scope = "LABEL"
-                }
-              }
-            }
-          }
-        }
-        dynamic "label_match_statement" {
-          # or_statement needs 2 arguments so handle the case when only one label is in the rule
-          for_each = length(rule.value.labels) == 1 && !rule.value.enable_rate_limiting ? rule.value.labels : []
-          # if rate limiting is not enabled and one element skip or_statement
-          content {
-            key   = label_match_statement.value
-            scope = "LABEL"
-          }
-        }
-        dynamic "rate_based_statement" {
-          for_each = rule.value.enable_rate_limiting ? [1] : [] # create rate_based_statement only if rate limiting is enabled
-          content {
-            aggregate_key_type = "IP"
-            limit              = rule.value.limit
-            dynamic "scope_down_statement" {
-              # or_statement needs 2 arguments so handle the case when only one label is in the rule
-              for_each = length(rule.value.labels) > 1 ? [1] : [] # if more than one element use or_statement
-              content {
-                or_statement {
-                  dynamic "statement" {
-                    for_each = rule.value.labels
-                    content {
-                      label_match_statement {
-                        scope = "LABEL"
-                        key   = statement.value
-                      }
-                    }
-                  }
-                }
-              }
-            }
-            dynamic "scope_down_statement" {
-              # or_statement needs 2 arguments so handle the case when only one label is in the rule
-              for_each = length(rule.value.labels) == 1 ? rule.value.labels : [] # if one element skip or_statement
-              content {
-                label_match_statement {
-                  scope = "LABEL"
-                  key   = scope_down_statement.value
-                }
-              }
-            }
-          }
-        }
-      }
-      visibility_config {
-        cloudwatch_metrics_enabled = true
-        metric_name                = rule.value.name
-        sampled_requests_enabled   = true
-      }
-    }
-  }
-
-  dynamic "rule" {
     for_each = var.country_rates
     content {
       name     = rule.value.name
@@ -377,110 +227,6 @@ resource "aws_wafv2_web_acl" "waf" {
       visibility_config {
         cloudwatch_metrics_enabled = true
         metric_name                = rule.value.name
-        sampled_requests_enabled   = true
-      }
-    }
-  }
-
-  dynamic "rule" {
-    for_each = var.everybody_else_limit == 0 ? [] : [1]
-    content {
-      name     = "Everybody_else"
-      priority = 80
-      action {
-        block {
-          custom_response {
-            custom_response_body_key = local.rate_limit_response_key
-            response_code            = 429
-          }
-        }
-      }
-      statement {
-        rate_based_statement {
-          aggregate_key_type = "IP"
-          limit              = var.everybody_else_limit
-
-          scope_down_statement {
-            not_statement {
-              statement {
-                geo_match_statement {
-                  country_codes = local.everybody_else_exclude_country_codes
-                  dynamic "forwarded_ip_config" {
-                    for_each = var.waf_scope == "REGIONAL" ? [1] : []
-                    content {
-                      header_name       = "X-Forwarded-For"
-                      fallback_behavior = "MATCH"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-      visibility_config {
-        cloudwatch_metrics_enabled = true
-        metric_name                = "Everybody_else"
-        sampled_requests_enabled   = true
-      }
-    }
-  }
-
-  dynamic "rule" {
-    for_each = length(var.limit_search_requests_by_countries.country_codes) > 0 ? [1] : []
-    content {
-      name     = "limit_search_requests_by_countries"
-      priority = 0
-      action {
-        block {
-          custom_response {
-            custom_response_body_key = local.rate_limit_response_key
-            response_code            = 429
-          }
-        }
-      }
-      statement {
-        rate_based_statement {
-          aggregate_key_type = "IP"
-          limit              = var.limit_search_requests_by_countries.limit
-          scope_down_statement {
-            and_statement {
-              statement {
-                byte_match_statement {
-                  positional_constraint = "STARTS_WITH"
-                  search_string         = "/search"
-                  field_to_match {
-                    uri_path {}
-                  }
-                  text_transformation {
-                    priority = 0
-                    type     = "NONE"
-                  }
-                }
-              }
-              statement {
-                not_statement {
-                  statement {
-                    geo_match_statement {
-                      country_codes = var.limit_search_requests_by_countries.country_codes
-                      dynamic "forwarded_ip_config" {
-                        for_each = var.waf_scope == "REGIONAL" ? [1] : []
-                        content {
-                          header_name       = "X-Forwarded-For"
-                          fallback_behavior = "MATCH"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-      visibility_config {
-        cloudwatch_metrics_enabled = true
-        metric_name                = "limit_search_requests_by_countries"
         sampled_requests_enabled   = true
       }
     }
@@ -639,5 +385,342 @@ resource "aws_wafv2_web_acl" "waf" {
         sampled_requests_enabled   = true
       }
     }
+  }
+  rule {
+    name     = "example"
+    priority = 5
+
+    override_action {
+      none {}
+    }
+
+    statement {
+      rule_group_reference_statement {
+        arn = aws_wafv2_rule_group.example.arn
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "example"
+      sampled_requests_enabled   = true
+    }
+  }
+  rule {
+    name     = "example2"
+    priority = 6
+
+    override_action {
+      none {}
+    }
+
+    statement {
+      rule_group_reference_statement {
+        arn = aws_wafv2_rule_group.example2.arn
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "example2"
+      sampled_requests_enabled   = true
+    }
+  }
+}
+
+resource "aws_wafv2_rule_group" "example" {
+  name     = "example-rule"
+  scope    = var.waf_scope
+  capacity = 50
+
+  custom_response_body {
+    key          = local.rate_limit_response_key
+    content      = <<MULTILINE
+      <h1>HTTP Error 429 - Too Many Requests</h1>
+      <p>Your device sent us too many requests in the past 5 minutes. Please wait a few minutes before retrying.</p>
+      <p>Info: Using VPNs, proxies or public wifi might affect negatively your experience. If you are using one, please try to disable it to see if the problem persists.</p>
+      <br/>
+      <p>If, instead, you believe you have been blocked by accident, please report with a screenshot and a quick summary of what you were trying to visit. This will greatly help us improving our protection systems.</p>
+    MULTILINE
+    content_type = "TEXT_HTML"
+  }
+
+  # This rule is meant to be a failsafe switch in case of attack
+  # Change "count" to "block" in the console if you are under attack and want to
+  # rate limit to a low number of requests every country except Switzerland
+  rule {
+    name     = "rate_limit_everything_apart_from_CH"
+    priority = 42
+    action {
+      count {}
+    }
+    statement {
+      rate_based_statement {
+        aggregate_key_type = "IP"
+        limit              = 300
+        scope_down_statement {
+          not_statement {
+            statement {
+              geo_match_statement {
+                country_codes = ["CH"]
+                dynamic "forwarded_ip_config" {
+                  for_each = var.waf_scope == "REGIONAL" ? [1] : []
+                  content {
+                    header_name       = "X-Forwarded-For"
+                    fallback_behavior = "MATCH"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "rate_limit_everything_apart_from_CH"
+      sampled_requests_enabled   = true
+    }
+  }
+  dynamic "rule" {
+    for_each = var.everybody_else_limit == 0 ? [] : [1]
+    content {
+      name     = "Everybody_else"
+      priority = 80
+      action {
+        block {
+          custom_response {
+            custom_response_body_key = local.rate_limit_response_key
+            response_code            = 429
+          }
+        }
+      }
+      statement {
+        rate_based_statement {
+          aggregate_key_type = "IP"
+          limit              = var.everybody_else_limit
+
+          scope_down_statement {
+            not_statement {
+              statement {
+                geo_match_statement {
+                  country_codes = local.everybody_else_exclude_country_codes
+                  dynamic "forwarded_ip_config" {
+                    for_each = var.waf_scope == "REGIONAL" ? [1] : []
+                    content {
+                      header_name       = "X-Forwarded-For"
+                      fallback_behavior = "MATCH"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      visibility_config {
+        cloudwatch_metrics_enabled = true
+        metric_name                = "Everybody_else"
+        sampled_requests_enabled   = true
+      }
+    }
+  }
+  dynamic "rule" {
+    for_each = length(var.limit_search_requests_by_countries.country_codes) > 0 ? [1] : []
+    content {
+      name     = "limit_search_requests_by_countries"
+      priority = 0
+      action {
+        block {
+          custom_response {
+            custom_response_body_key = local.rate_limit_response_key
+            response_code            = 429
+          }
+        }
+      }
+      statement {
+        rate_based_statement {
+          aggregate_key_type = "IP"
+          limit              = var.limit_search_requests_by_countries.limit
+          scope_down_statement {
+            and_statement {
+              statement {
+                byte_match_statement {
+                  positional_constraint = "STARTS_WITH"
+                  search_string         = "/search"
+                  field_to_match {
+                    uri_path {}
+                  }
+                  text_transformation {
+                    priority = 0
+                    type     = "NONE"
+                  }
+                }
+              }
+              statement {
+                not_statement {
+                  statement {
+                    geo_match_statement {
+                      country_codes = var.limit_search_requests_by_countries.country_codes
+                      dynamic "forwarded_ip_config" {
+                        for_each = var.waf_scope == "REGIONAL" ? [1] : []
+                        content {
+                          header_name       = "X-Forwarded-For"
+                          fallback_behavior = "MATCH"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      visibility_config {
+        cloudwatch_metrics_enabled = true
+        metric_name                = "limit_search_requests_by_countries"
+        sampled_requests_enabled   = true
+      }
+    }
+  }
+  visibility_config {
+    cloudwatch_metrics_enabled = true
+    metric_name                = "example2"
+    sampled_requests_enabled   = true
+  }
+}
+resource "aws_wafv2_rule_group" "example2" {
+  name     = "example-rule2"
+  scope    = var.waf_scope
+  capacity = 50
+
+  custom_response_body {
+    key          = local.rate_limit_response_key
+    content      = <<MULTILINE
+      <h1>HTTP Error 429 - Too Many Requests</h1>
+      <p>Your device sent us too many requests in the past 5 minutes. Please wait a few minutes before retrying.</p>
+      <p>Info: Using VPNs, proxies or public wifi might affect negatively your experience. If you are using one, please try to disable it to see if the problem persists.</p>
+      <br/>
+      <p>If, instead, you believe you have been blocked by accident, please report with a screenshot and a quick summary of what you were trying to visit. This will greatly help us improving our protection systems.</p>
+    MULTILINE
+    content_type = "TEXT_HTML"
+  }
+
+  dynamic "rule" {
+    for_each = var.aws_managed_rule_labels
+    content {
+      name     = rule.value.name
+      priority = rule.value.priority
+      action {
+        dynamic "block" {
+          for_each = rule.value.action == "block" ? [1] : []
+          content {
+            custom_response {
+              custom_response_body_key = local.rate_limit_response_key
+              response_code            = 429
+            }
+          }
+        }
+        dynamic "captcha" {
+          for_each = rule.value.action == "captcha" ? [1] : []
+          content {}
+        }
+        dynamic "challenge" {
+          for_each = rule.value.action == "challenge" ? [1] : []
+          content {}
+        }
+      }
+      dynamic "captcha_config" {
+        for_each = rule.value.action == "captcha" ? [1] : []
+        content {
+          immunity_time_property {
+            immunity_time = rule.value.immunity_seconds
+          }
+        }
+      }
+      # dynamic "challenge_config" { 
+      # # available in the console but seems to be not supported on tf (?) 
+      # # even if is mentioned in the docs https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_web_acl#challenge_config-block
+      # # and is in an open issue https://github.com/hashicorp/terraform-provider-aws/issues/29071 
+      #   for_each = rule.value.action == "challenge" ? [1] : []
+      #   content {
+      #     immunity_time_property {
+      #       immunity_time = rule.value.immunity_seconds
+      #     }
+      #   }
+      # }
+      statement {
+        dynamic "or_statement" {
+          # or_statement needs 2 arguments so handle the case when only one label is in the rule
+          for_each = length(rule.value.labels) > 1 && !rule.value.enable_rate_limiting ? [1] : []
+          # if rate limiting is not enabled and more than one element use or_statement
+          content {
+            dynamic "statement" {
+              for_each = rule.value.labels
+              content {
+                label_match_statement {
+                  key   = statement.value
+                  scope = "LABEL"
+                }
+              }
+            }
+          }
+        }
+        dynamic "label_match_statement" {
+          # or_statement needs 2 arguments so handle the case when only one label is in the rule
+          for_each = length(rule.value.labels) == 1 && !rule.value.enable_rate_limiting ? rule.value.labels : []
+          # if rate limiting is not enabled and one element skip or_statement
+          content {
+            key   = label_match_statement.value
+            scope = "LABEL"
+          }
+        }
+        dynamic "rate_based_statement" {
+          for_each = rule.value.enable_rate_limiting ? [1] : [] # create rate_based_statement only if rate limiting is enabled
+          content {
+            aggregate_key_type = "IP"
+            limit              = rule.value.limit
+            dynamic "scope_down_statement" {
+              # or_statement needs 2 arguments so handle the case when only one label is in the rule
+              for_each = length(rule.value.labels) > 1 ? [1] : [] # if more than one element use or_statement
+              content {
+                or_statement {
+                  dynamic "statement" {
+                    for_each = rule.value.labels
+                    content {
+                      label_match_statement {
+                        scope = "LABEL"
+                        key   = statement.value
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            dynamic "scope_down_statement" {
+              # or_statement needs 2 arguments so handle the case when only one label is in the rule
+              for_each = length(rule.value.labels) == 1 ? rule.value.labels : [] # if one element skip or_statement
+              content {
+                label_match_statement {
+                  scope = "LABEL"
+                  key   = scope_down_statement.value
+                }
+              }
+            }
+          }
+        }
+      }
+      visibility_config {
+        cloudwatch_metrics_enabled = true
+        metric_name                = rule.value.name
+        sampled_requests_enabled   = true
+      }
+    }
+  }
+  visibility_config {
+    cloudwatch_metrics_enabled = true
+    metric_name                = "example2"
+    sampled_requests_enabled   = true
   }
 }
