@@ -144,8 +144,12 @@ variable "aws_managed_rule_labels" {
     },
   ]
   validation {
-    condition     = alltrue([for rule in var.aws_managed_rule_labels : ((rule.priority >= 60 && rule.priority < 70) || (rule.priority > 80) && contains(["block", "captcha", "challenge"], rule.action))])
-    error_message = "var.aws_managed_rule_labels.priority must be between 60 and 69 or greater than 80. var.aws_managed_rule_labels.action must be either block, captcha or challenge"
+    condition     = length(var.aws_managed_rule_labels) <= 4
+    error_message = "var.aws_managed_rule_labels can have a max length of 4."
+  }
+  validation {
+    condition     = alltrue([for rule in var.aws_managed_rule_labels : (rule.priority >= 60 && rule.priority < 64) && contains(["block", "captcha", "challenge"], rule.action)])
+    error_message = "var.aws_managed_rule_labels.priority must be between 60 and 63. var.aws_managed_rule_labels.action must be either block, captcha or challenge"
   }
 }
 
