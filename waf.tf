@@ -10,7 +10,7 @@
 # 43: count_requests_from_ch
 # 44-49: free
 # 50-59: AWS Managed rule groups (these are the ones that only count and label requests)
-# 60-69: AWS managed rule labels rate limit
+# 60: AWS managed rule labels rate limit
 # 70-79: country_rates
 # 80: everybody_else_limit
 
@@ -221,118 +221,6 @@ resource "aws_wafv2_web_acl" "waf" {
         managed_rule_group_statement {
           name        = rule.value.name
           vendor_name = "AWS"
-        }
-      }
-      visibility_config {
-        cloudwatch_metrics_enabled = true
-        metric_name                = rule.value.name
-        sampled_requests_enabled   = true
-      }
-    }
-  }
-
-  dynamic "rule" {
-    for_each = var.aws_managed_rule_labels
-    content {
-      name     = rule.value.name
-      priority = rule.value.priority
-      action {
-        dynamic "block" {
-          for_each = rule.value.action == "block" ? [1] : []
-          content {
-            custom_response {
-              custom_response_body_key = local.rate_limit_response_key
-              response_code            = 429
-            }
-          }
-        }
-        dynamic "captcha" {
-          for_each = rule.value.action == "captcha" ? [1] : []
-          content {}
-        }
-        dynamic "challenge" {
-          for_each = rule.value.action == "challenge" ? [1] : []
-          content {}
-        }
-      }
-      dynamic "captcha_config" {
-        for_each = rule.value.action == "captcha" ? [1] : []
-        content {
-          immunity_time_property {
-            immunity_time = rule.value.immunity_seconds
-          }
-        }
-      }
-      # dynamic "challenge_config" { 
-      # # available in the console but seems to be not supported on tf (?) 
-      # # even if is mentioned in the docs https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_web_acl#challenge_config-block
-      # # and is in an open issue https://github.com/hashicorp/terraform-provider-aws/issues/29071 
-      #   for_each = rule.value.action == "challenge" ? [1] : []
-      #   content {
-      #     immunity_time_property {
-      #       immunity_time = rule.value.immunity_seconds
-      #     }
-      #   }
-      # }
-      statement {
-        dynamic "or_statement" {
-          # or_statement needs 2 arguments so handle the case when only one label is in the rule
-          for_each = length(rule.value.labels) > 1 && !rule.value.enable_rate_limiting ? [1] : []
-          # if rate limiting is not enabled and more than one element use or_statement
-          content {
-            dynamic "statement" {
-              for_each = rule.value.labels
-              content {
-                label_match_statement {
-                  key   = statement.value
-                  scope = "LABEL"
-                }
-              }
-            }
-          }
-        }
-        dynamic "label_match_statement" {
-          # or_statement needs 2 arguments so handle the case when only one label is in the rule
-          for_each = length(rule.value.labels) == 1 && !rule.value.enable_rate_limiting ? rule.value.labels : []
-          # if rate limiting is not enabled and one element skip or_statement
-          content {
-            key   = label_match_statement.value
-            scope = "LABEL"
-          }
-        }
-        dynamic "rate_based_statement" {
-          for_each = rule.value.enable_rate_limiting ? [1] : [] # create rate_based_statement only if rate limiting is enabled
-          content {
-            aggregate_key_type = "IP"
-            limit              = rule.value.limit
-            dynamic "scope_down_statement" {
-              # or_statement needs 2 arguments so handle the case when only one label is in the rule
-              for_each = length(rule.value.labels) > 1 ? [1] : [] # if more than one element use or_statement
-              content {
-                or_statement {
-                  dynamic "statement" {
-                    for_each = rule.value.labels
-                    content {
-                      label_match_statement {
-                        scope = "LABEL"
-                        key   = statement.value
-                      }
-                    }
-                  }
-                }
-              }
-            }
-            dynamic "scope_down_statement" {
-              # or_statement needs 2 arguments so handle the case when only one label is in the rule
-              for_each = length(rule.value.labels) == 1 ? rule.value.labels : [] # if one element skip or_statement
-              content {
-                label_match_statement {
-                  scope = "LABEL"
-                  key   = scope_down_statement.value
-                }
-              }
-            }
-          }
         }
       }
       visibility_config {
@@ -639,5 +527,160 @@ resource "aws_wafv2_web_acl" "waf" {
         sampled_requests_enabled   = true
       }
     }
+  }
+  rule {
+    name     = "aws_managed_rule_labels"
+    priority = 60
+
+    override_action {
+      none {}
+    }
+
+    statement {
+      rule_group_reference_statement {
+        arn = aws_wafv2_rule_group.aws_managed_rule_labels.arn
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "aws_managed_rule_labels"
+      sampled_requests_enabled   = true
+    }
+  }
+}
+
+resource "aws_wafv2_rule_group" "aws_managed_rule_labels" {
+  name     = "aws_managed_rule_labels"
+  scope    = var.waf_scope
+  capacity = 50
+
+  custom_response_body {
+    key          = local.rate_limit_response_key
+    content      = <<MULTILINE
+      <h1>HTTP Error 429 - Too Many Requests</h1>
+      <p>Your device sent us too many requests in the past 5 minutes. Please wait a few minutes before retrying.</p>
+      <p>Info: Using VPNs, proxies or public wifi might affect negatively your experience. If you are using one, please try to disable it to see if the problem persists.</p>
+      <br/>
+      <p>If, instead, you believe you have been blocked by accident, please report with a screenshot and a quick summary of what you were trying to visit. This will greatly help us improving our protection systems.</p>
+    MULTILINE
+    content_type = "TEXT_HTML"
+  }
+
+  dynamic "rule" {
+    for_each = var.aws_managed_rule_labels
+    content {
+      name     = rule.value.name
+      priority = rule.value.priority
+      action {
+        dynamic "block" {
+          for_each = rule.value.action == "block" ? [1] : []
+          content {
+            custom_response {
+              custom_response_body_key = local.rate_limit_response_key
+              response_code            = 429
+            }
+          }
+        }
+        dynamic "captcha" {
+          for_each = rule.value.action == "captcha" ? [1] : []
+          content {}
+        }
+        dynamic "challenge" {
+          for_each = rule.value.action == "challenge" ? [1] : []
+          content {}
+        }
+      }
+      dynamic "captcha_config" {
+        for_each = rule.value.action == "captcha" ? [1] : []
+        content {
+          immunity_time_property {
+            immunity_time = rule.value.immunity_seconds
+          }
+        }
+      }
+      # dynamic "challenge_config" { 
+      # # available in the console but seems to be not supported on tf (?) 
+      # # even if is mentioned in the docs https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_web_acl#challenge_config-block
+      # # and is in an open issue https://github.com/hashicorp/terraform-provider-aws/issues/29071 
+      #   for_each = rule.value.action == "challenge" ? [1] : []
+      #   content {
+      #     immunity_time_property {
+      #       immunity_time = rule.value.immunity_seconds
+      #     }
+      #   }
+      # }
+      statement {
+        dynamic "or_statement" {
+          # or_statement needs 2 arguments so handle the case when only one label is in the rule
+          for_each = length(rule.value.labels) > 1 && !rule.value.enable_rate_limiting ? [1] : []
+          # if rate limiting is not enabled and more than one element use or_statement
+          content {
+            dynamic "statement" {
+              for_each = rule.value.labels
+              content {
+                label_match_statement {
+                  key   = statement.value
+                  scope = "LABEL"
+                }
+              }
+            }
+          }
+        }
+        dynamic "label_match_statement" {
+          # or_statement needs 2 arguments so handle the case when only one label is in the rule
+          for_each = length(rule.value.labels) == 1 && !rule.value.enable_rate_limiting ? rule.value.labels : []
+          # if rate limiting is not enabled and one element skip or_statement
+          content {
+            key   = label_match_statement.value
+            scope = "LABEL"
+          }
+        }
+        dynamic "rate_based_statement" {
+          for_each = rule.value.enable_rate_limiting ? [1] : [] # create rate_based_statement only if rate limiting is enabled
+          content {
+            aggregate_key_type = "IP"
+            limit              = rule.value.limit
+            dynamic "scope_down_statement" {
+              # or_statement needs 2 arguments so handle the case when only one label is in the rule
+              for_each = length(rule.value.labels) > 1 ? [1] : [] # if more than one element use or_statement
+              content {
+                or_statement {
+                  dynamic "statement" {
+                    for_each = rule.value.labels
+                    content {
+                      label_match_statement {
+                        scope = "LABEL"
+                        key   = statement.value
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            dynamic "scope_down_statement" {
+              # or_statement needs 2 arguments so handle the case when only one label is in the rule
+              for_each = length(rule.value.labels) == 1 ? rule.value.labels : [] # if one element skip or_statement
+              content {
+                label_match_statement {
+                  scope = "LABEL"
+                  key   = scope_down_statement.value
+                }
+              }
+            }
+          }
+        }
+      }
+      visibility_config {
+        cloudwatch_metrics_enabled = true
+        metric_name                = rule.value.name
+        sampled_requests_enabled   = true
+      }
+    }
+  }
+  visibility_config {
+    cloudwatch_metrics_enabled = true
+    metric_name                = "aws_managed_rule_labels"
+    sampled_requests_enabled   = true
   }
 }
