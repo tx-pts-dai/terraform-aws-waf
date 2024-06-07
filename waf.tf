@@ -209,6 +209,44 @@ resource "aws_wafv2_web_acl" "waf" {
     }
   }
 
+    dynamic "rule" {
+    for_each = var.whitelisted_headers != null ? [1] : []
+    content {
+      name     = "Whitelist based on headers"
+      priority = 45
+      action {
+        allow {}
+      }
+      statement {
+        or_statement {
+          dynamic "statement" {
+            for_each = var.whitelisted_headers.headers
+            content {
+              byte_match_statement {
+                positional_constraint = var.whitelisted_headers.string_match_type
+                search_string         = each.value
+                field_to_match {
+                  single_header {
+                    name = each.key
+                  }
+                }
+                text_transformation {
+                  priority = 0
+                  type     = "NONE"
+                }
+              }
+            }
+          }
+        }
+      }
+      visibility_config {
+        cloudwatch_metrics_enabled = true
+        metric_name                = "Switzerland"
+        sampled_requests_enabled   = true
+      }
+    }
+  }
+
   dynamic "rule" {
     for_each = var.aws_managed_rule_groups
     content {
