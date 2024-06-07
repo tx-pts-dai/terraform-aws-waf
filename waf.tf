@@ -227,7 +227,7 @@ resource "aws_wafv2_web_acl" "waf" {
                 search_string         = statement.value
                 field_to_match {
                   single_header {
-                    name = statement.key
+                    name = lower(statement.key)
                   }
                 }
                 text_transformation {

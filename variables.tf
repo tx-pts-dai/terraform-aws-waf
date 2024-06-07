@@ -99,8 +99,8 @@ variable "whitelisted_ips_v6" {
 
 variable "whitelisted_headers" {
   description = "Map of header => value to be whitelisted. Set to empty map to disable the whitelisting"
-  type        = object({
-    headers = map(string)
+  type = object({
+    headers           = map(string)
     string_match_type = optional(string, "EXACTLY") # possible values: EXACTLY, STARTS_WITH, ENDS_WITH, CONTAINS, CONTAINS_WORD
   })
   default = null
