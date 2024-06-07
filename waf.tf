@@ -209,7 +209,7 @@ resource "aws_wafv2_web_acl" "waf" {
     }
   }
 
-    dynamic "rule" {
+  dynamic "rule" {
     for_each = var.whitelisted_headers != null ? [1] : []
     content {
       name     = "Whitelist based on headers"
@@ -241,7 +241,7 @@ resource "aws_wafv2_web_acl" "waf" {
       }
       visibility_config {
         cloudwatch_metrics_enabled = true
-        metric_name                = "Switzerland"
+        metric_name                = "Whitelisted headers"
         sampled_requests_enabled   = true
       }
     }
