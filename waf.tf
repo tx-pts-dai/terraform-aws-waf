@@ -224,10 +224,10 @@ resource "aws_wafv2_web_acl" "waf" {
             content {
               byte_match_statement {
                 positional_constraint = var.whitelisted_headers.string_match_type
-                search_string         = each.value
+                search_string         = statement.value
                 field_to_match {
                   single_header {
-                    name = each.key
+                    name = statement.key
                   }
                 }
                 text_transformation {
