@@ -241,7 +241,7 @@ resource "aws_wafv2_web_acl" "waf" {
       }
       visibility_config {
         cloudwatch_metrics_enabled = true
-        metric_name                = "Whitelisted headers"
+        metric_name                = "Whitelisted_headers"
         sampled_requests_enabled   = true
       }
     }
