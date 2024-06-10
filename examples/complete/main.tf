@@ -34,6 +34,12 @@ module "waf" {
   k6_ip_ranges_url                  = "https://ip-ranges.amazonaws.com/ip-ranges.json"
   whitelisted_ips_v4                = ["1.1.1.1/16", "255.255.255.255/32"]
   whitelisted_ips_v6                = []
+  whitelisted_headers = {
+    headers = {
+      "MyCustomHeader"  = "Lighthouse"
+      "MyCustomHeader2" = "Playwright-secretStr1ng-disco"
+    }
+  }
   aws_managed_rule_groups = [
     {
       name     = "AWSManagedRulesAnonymousIpList" # Full list of labels from this group: https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-ip-rep.html

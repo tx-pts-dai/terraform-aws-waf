@@ -97,6 +97,15 @@ variable "whitelisted_ips_v6" {
   }
 }
 
+variable "whitelisted_headers" {
+  description = "Map of header => value to be whitelisted. Set to empty map to disable the whitelisting"
+  type = object({
+    headers           = map(string)
+    string_match_type = optional(string, "EXACTLY") # possible values: EXACTLY, STARTS_WITH, ENDS_WITH, CONTAINS, CONTAINS_WORD
+  })
+  default = null
+}
+
 variable "aws_managed_rule_groups" {
   description = "AWS Managed Rule Groups counting and labeling requests. The labels applied by these groups can be specified in aws_managed_rule_labels to rate limit requests. Available groups are described here https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-list.html. Not applicable for var.waf_scope = REGIONAL"
   type = list(object({
