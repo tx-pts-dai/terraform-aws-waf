@@ -212,29 +212,52 @@ resource "aws_wafv2_web_acl" "waf" {
   dynamic "rule" {
     for_each = var.whitelisted_headers != null ? [1] : []
     content {
-      name     = "Whitelist based on headers"
+      name     = "Whitelist_based_on_headers"
       priority = 45
       action {
         allow {}
       }
-      statement {
-        or_statement {
-          dynamic "statement" {
-            for_each = var.whitelisted_headers.headers
-            content {
-              byte_match_statement {
-                positional_constraint = var.whitelisted_headers.string_match_type
-                search_string         = statement.value
-                field_to_match {
-                  single_header {
-                    name = lower(statement.key)
+      dynamic "statement" {
+        # or_statement needs 2 arguments so handle the case when only one article is in the rule
+        for_each = length(var.whitelisted_headers.headers) > 1 ? [1] : [] # if more than one element use or_statement
+        content {
+          or_statement {
+            dynamic "statement" {
+              for_each = var.whitelisted_headers.headers
+              content {
+                byte_match_statement {
+                  positional_constraint = var.whitelisted_headers.string_match_type
+                  search_string         = statement.value
+                  field_to_match {
+                    single_header {
+                      name = lower(statement.key)
+                    }
+                  }
+                  text_transformation {
+                    priority = 0
+                    type     = "NONE"
                   }
                 }
-                text_transformation {
-                  priority = 0
-                  type     = "NONE"
-                }
               }
+            }
+          }
+        }
+      }
+      dynamic "statement" {
+        # or_statement needs 2 arguments so handle the case when only one article is in the rule
+        for_each = length(var.whitelisted_headers.headers) == 1 ? var.whitelisted_headers.headers : {} # if more than one element use or_statement
+        content {
+          byte_match_statement {
+            positional_constraint = var.whitelisted_headers.string_match_type
+            search_string         = statement.value
+            field_to_match {
+              single_header {
+                name = lower(statement.key)
+              }
+            }
+            text_transformation {
+              priority = 0
+              type     = "NONE"
             }
           }
         }
