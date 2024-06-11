@@ -212,7 +212,7 @@ resource "aws_wafv2_web_acl" "waf" {
   dynamic "rule" {
     for_each = var.whitelisted_headers != null ? [1] : []
     content {
-      name     = "Whitelist based on headers"
+      name     = "Whitelist_based_on_headers"
       priority = 45
       action {
         allow {}
