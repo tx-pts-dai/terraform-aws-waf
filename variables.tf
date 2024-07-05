@@ -142,7 +142,7 @@ variable "aws_managed_rule_labels" {
   default = [
     {
       name     = "aws_managed_rule_low_limit"
-      labels   = ["awswaf:managed:aws:anonymous-ip-list:AnonymousIPList", "awswaf:managed:aws:amazon-ip-list:AWSManagedIPReputationList", "awswaf:managed:aws:amazon-ip-list:AWSManagedReconnaissanceList", "awswaf:managed:aws:amazon-ip-list:AWSManagedIPDDoSList"]
+      labels   = ["awswaf:managed:aws:anonymous-ip-list:AnonymousIPList", "awswaf:managed:aws:amazon-ip-list:AWSManagedIPReputationList", "awswaf:managed:aws:amazon-ip-list:AWSManagedReconnaissanceList"]
       priority = 60
     },
     {
@@ -151,6 +151,12 @@ variable "aws_managed_rule_labels" {
       limit    = 750
       priority = 61
     },
+    {
+      name     = "aws_managed_rule_medium_limit"
+      labels   = ["awswaf:managed:aws:amazon-ip-list:AWSManagedIPDDoSList"]
+      action   = "captcha"
+      priority = 62
+    }
   ]
   validation {
     condition     = length(var.aws_managed_rule_labels) <= 4
@@ -175,7 +181,7 @@ variable "country_rates" {
     name          = string
     limit         = number
     priority      = number
-    action        = optional(string, "block") # possible actions: block, captcha, challenge
+    action        = optional(string, "captcha") # possible actions: block, captcha, challenge
     country_codes = set(string)
   }))
   # Example
