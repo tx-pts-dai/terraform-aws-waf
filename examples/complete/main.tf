@@ -87,6 +87,7 @@ module "waf" {
       name          = "Very_slow"
       limit         = 100
       country_codes = ["AR", "BD", "BR", "KH", "CN", "CO", "EC", "IN", "ID", "MX", "NP", "PK", "RU", "SG", "TR", "UA", "AE", "ZM", "VN"]
+      action        = "block"
       priority      = 72
     }
   ]
