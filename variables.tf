@@ -175,6 +175,7 @@ variable "country_rates" {
     name          = string
     limit         = number
     priority      = number
+    action        = optional(string, "block") # possible actions: block, captcha, challenge
     country_codes = set(string)
   }))
   # Example
@@ -182,6 +183,7 @@ variable "country_rates" {
   #   { name         = "Group_1-CH"
   #     limit        = 50000
   #     country_codes = ["CH"]
+  #     action       = "captcha"
   #     priority     = 30
   #   },
   #   { name         = "Group_2-DE_AT_FR"
