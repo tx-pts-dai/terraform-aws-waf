@@ -53,7 +53,7 @@ module "waf" {
   aws_managed_rule_labels = [
     {
       name     = "aws_managed_rule_low_limit"
-      labels   = ["awswaf:managed:aws:anonymous-ip-list:AnonymousIPList", "awswaf:managed:aws:amazon-ip-list:AWSManagedIPReputationList", "awswaf:managed:aws:amazon-ip-list:AWSManagedReconnaissanceList", "awswaf:managed:aws:amazon-ip-list:AWSManagedIPDDoSList"]
+      labels   = ["awswaf:managed:aws:anonymous-ip-list:AnonymousIPList", "awswaf:managed:aws:amazon-ip-list:AWSManagedIPReputationList", "awswaf:managed:aws:amazon-ip-list:AWSManagedReconnaissanceList"]
       priority = 60
     },
     {
@@ -62,6 +62,12 @@ module "waf" {
       limit    = 750
       priority = 61
     },
+    {
+      name     = "aws_managed_rule_medium_limit"
+      labels   = ["awswaf:managed:aws:amazon-ip-list:AWSManagedIPDDoSList"]
+      action   = "captcha"
+      priority = 62
+    }
   ]
   count_requests_from_ch = false
   country_rates = [
@@ -81,6 +87,7 @@ module "waf" {
       name          = "Very_slow"
       limit         = 100
       country_codes = ["AR", "BD", "BR", "KH", "CN", "CO", "EC", "IN", "ID", "MX", "NP", "PK", "RU", "SG", "TR", "UA", "AE", "ZM", "VN"]
+      action        = "block"
       priority      = 72
     }
   ]

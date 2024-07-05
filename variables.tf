@@ -142,7 +142,7 @@ variable "aws_managed_rule_labels" {
   default = [
     {
       name     = "aws_managed_rule_low_limit"
-      labels   = ["awswaf:managed:aws:anonymous-ip-list:AnonymousIPList", "awswaf:managed:aws:amazon-ip-list:AWSManagedIPReputationList", "awswaf:managed:aws:amazon-ip-list:AWSManagedReconnaissanceList", "awswaf:managed:aws:amazon-ip-list:AWSManagedIPDDoSList"]
+      labels   = ["awswaf:managed:aws:anonymous-ip-list:AnonymousIPList", "awswaf:managed:aws:amazon-ip-list:AWSManagedIPReputationList", "awswaf:managed:aws:amazon-ip-list:AWSManagedReconnaissanceList"]
       priority = 60
     },
     {
@@ -151,6 +151,12 @@ variable "aws_managed_rule_labels" {
       limit    = 750
       priority = 61
     },
+    {
+      name     = "aws_managed_rule_medium_limit"
+      labels   = ["awswaf:managed:aws:amazon-ip-list:AWSManagedIPDDoSList"]
+      action   = "captcha"
+      priority = 62
+    }
   ]
   validation {
     condition     = length(var.aws_managed_rule_labels) <= 4
@@ -172,10 +178,12 @@ variable "country_rates" {
   default     = []
   description = "List of limits for groups of countries."
   type = list(object({
-    name          = string
-    limit         = number
-    priority      = number
-    country_codes = set(string)
+    name             = string
+    limit            = number
+    priority         = number
+    action           = optional(string, "captcha") # possible actions: block, captcha, challenge
+    immunity_seconds = optional(number, 300)       # only used if action is captcha (for challenge it's not currently allowed in tf, see waf.tf for more details). Immunity time in seconds after successfully passing a challenge
+    country_codes    = set(string)
   }))
   # Example
   # [
@@ -193,6 +201,7 @@ variable "country_rates" {
   #   { name         = "Very_slow"
   #     limit        = 100
   #     country_codes = ["AR", "BD", "BR", "KH", "CN", "CO", "EC", "IN", "ID", "MX", "NP", "PK", "RU", "SG", "TR", "UA", "AE", "ZM", "VN"]
+  #     action       = "block"
   #     priority     = 35
   #   }
   # ]

@@ -298,10 +298,29 @@ resource "aws_wafv2_web_acl" "waf" {
       name     = rule.value.name
       priority = rule.value.priority
       action {
-        block {
-          custom_response {
-            custom_response_body_key = local.rate_limit_response_key
-            response_code            = 429
+        dynamic "block" {
+          for_each = rule.value.action == "block" ? [1] : []
+          content {
+            custom_response {
+              custom_response_body_key = local.rate_limit_response_key
+              response_code            = 429
+            }
+          }
+        }
+        dynamic "captcha" {
+          for_each = rule.value.action == "captcha" ? [1] : []
+          content {}
+        }
+        dynamic "challenge" {
+          for_each = rule.value.action == "challenge" ? [1] : []
+          content {}
+        }
+      }
+      dynamic "captcha_config" {
+        for_each = rule.value.action == "captcha" ? [1] : []
+        content {
+          immunity_time_property {
+            immunity_time = rule.value.immunity_seconds
           }
         }
       }
