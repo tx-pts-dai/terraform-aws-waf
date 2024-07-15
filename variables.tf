@@ -176,7 +176,7 @@ variable "country_rates" {
     limit            = number
     priority         = number
     action           = optional(string, "block") # possible actions: block, captcha, challenge
-    immunity_seconds = optional(number, 300)       # only used if action is captcha (for challenge it's not currently allowed in tf, see waf.tf for more details). Immunity time in seconds after successfully passing a challenge
+    immunity_seconds = optional(number, 300)     # only used if action is captcha (for challenge it's not currently allowed in tf, see waf.tf for more details). Immunity time in seconds after successfully passing a challenge
     country_codes    = set(string)
   }))
   # Example
