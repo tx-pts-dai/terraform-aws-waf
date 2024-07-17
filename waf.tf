@@ -32,6 +32,14 @@ locals {
     local.k6_load_generators_ipv4,    # empty if enable_k6_whitelist is set to false
   ))
   rate_limit_response_key = "rate-limit-error"
+  custom_response_body    = <<MULTILINE
+      <h1>HTTP Error 429 - Too Many Requests</h1>
+      <p>Your device sent us too many requests in the past 5 minutes. Please wait a few minutes before retrying.</p>
+      <p>Info: Using VPNs, proxies or public wifi might affect negatively your experience. If you are using one, please try to disable it to see if the problem persists.</p>
+      <br/>
+      <p>If, instead, you believe you have been blocked by accident, please report with a screenshot and a quick summary of what you were trying to visit. This will greatly help us improving our protection systems.</p>
+  MULTILINE
+
 }
 
 resource "aws_wafv2_ip_set" "whitelisted_ips_v4" {
@@ -75,13 +83,7 @@ resource "aws_wafv2_web_acl" "waf" {
 
   custom_response_body {
     key          = local.rate_limit_response_key
-    content      = <<MULTILINE
-      <h1>HTTP Error 429 - Too Many Requests</h1>
-      <p>Your device sent us too many requests in the past 5 minutes. Please wait a few minutes before retrying.</p>
-      <p>Info: Using VPNs, proxies or public wifi might affect negatively your experience. If you are using one, please try to disable it to see if the problem persists.</p>
-      <br/>
-      <p>If, instead, you believe you have been blocked by accident, please report with a screenshot and a quick summary of what you were trying to visit. This will greatly help us improving our protection systems.</p>
-    MULTILINE
+    content      = local.custom_response_body
     content_type = "TEXT_HTML"
   }
 
@@ -282,64 +284,6 @@ resource "aws_wafv2_web_acl" "waf" {
         managed_rule_group_statement {
           name        = rule.value.name
           vendor_name = "AWS"
-        }
-      }
-      visibility_config {
-        cloudwatch_metrics_enabled = true
-        metric_name                = rule.value.name
-        sampled_requests_enabled   = true
-      }
-    }
-  }
-
-  dynamic "rule" {
-    for_each = var.country_rates
-    content {
-      name     = rule.value.name
-      priority = rule.value.priority
-      action {
-        dynamic "block" {
-          for_each = rule.value.action == "block" ? [1] : []
-          content {
-            custom_response {
-              custom_response_body_key = local.rate_limit_response_key
-              response_code            = 429
-            }
-          }
-        }
-        dynamic "captcha" {
-          for_each = rule.value.action == "captcha" ? [1] : []
-          content {}
-        }
-        dynamic "challenge" {
-          for_each = rule.value.action == "challenge" ? [1] : []
-          content {}
-        }
-      }
-      dynamic "captcha_config" {
-        for_each = rule.value.action == "captcha" ? [1] : []
-        content {
-          immunity_time_property {
-            immunity_time = rule.value.immunity_seconds
-          }
-        }
-      }
-      statement {
-        rate_based_statement {
-          aggregate_key_type = "IP"
-          limit              = rule.value.limit
-          scope_down_statement {
-            geo_match_statement {
-              country_codes = rule.value.country_codes
-              dynamic "forwarded_ip_config" {
-                for_each = var.waf_scope == "REGIONAL" ? [1] : []
-                content {
-                  header_name       = "X-Forwarded-For"
-                  fallback_behavior = "MATCH"
-                }
-              }
-            }
-          }
         }
       }
       visibility_config {
@@ -628,8 +572,100 @@ resource "aws_wafv2_web_acl" "waf" {
       sampled_requests_enabled   = true
     }
   }
+  rule {
+    name     = "country_rate_rules"
+    priority = 70
+
+    override_action {
+      none {}
+    }
+
+    statement {
+      rule_group_reference_statement {
+        arn = aws_wafv2_rule_group.country_rate_rules.arn
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "country_rate_rules"
+      sampled_requests_enabled   = true
+    }
+  }
 }
 
+resource "aws_wafv2_rule_group" "country_rate_rules" {
+  name     = "country_rate_rules"
+  scope    = var.waf_scope
+  capacity = 50
+  custom_response_body {
+    key          = local.rate_limit_response_key
+    content      = local.custom_response_body
+    content_type = "TEXT_HTML"
+  }
+  dynamic "rule" {
+    for_each = var.country_rates
+    content {
+      name     = rule.value.name
+      priority = rule.value.priority
+      action {
+        dynamic "block" {
+          for_each = rule.value.action == "block" ? [1] : []
+          content {
+            custom_response {
+              custom_response_body_key = local.rate_limit_response_key
+              response_code            = 429
+            }
+          }
+        }
+        dynamic "captcha" {
+          for_each = rule.value.action == "captcha" ? [1] : []
+          content {}
+        }
+        dynamic "challenge" {
+          for_each = rule.value.action == "challenge" ? [1] : []
+          content {}
+        }
+      }
+      dynamic "captcha_config" {
+        for_each = rule.value.action == "captcha" ? [1] : []
+        content {
+          immunity_time_property {
+            immunity_time = rule.value.immunity_seconds
+          }
+        }
+      }
+      statement {
+        rate_based_statement {
+          aggregate_key_type = "IP"
+          limit              = rule.value.limit
+          scope_down_statement {
+            geo_match_statement {
+              country_codes = rule.value.country_codes
+              dynamic "forwarded_ip_config" {
+                for_each = var.waf_scope == "REGIONAL" ? [1] : []
+                content {
+                  header_name       = "X-Forwarded-For"
+                  fallback_behavior = "MATCH"
+                }
+              }
+            }
+          }
+        }
+      }
+      visibility_config {
+        cloudwatch_metrics_enabled = true
+        metric_name                = rule.value.name
+        sampled_requests_enabled   = true
+      }
+    }
+  }
+  visibility_config {
+    cloudwatch_metrics_enabled = true
+    metric_name                = "country_rate_rules"
+    sampled_requests_enabled   = true
+  }
+}
 resource "aws_wafv2_rule_group" "aws_managed_rule_labels" {
   name     = "aws_managed_rule_labels"
   scope    = var.waf_scope
@@ -637,13 +673,7 @@ resource "aws_wafv2_rule_group" "aws_managed_rule_labels" {
 
   custom_response_body {
     key          = local.rate_limit_response_key
-    content      = <<MULTILINE
-      <h1>HTTP Error 429 - Too Many Requests</h1>
-      <p>Your device sent us too many requests in the past 5 minutes. Please wait a few minutes before retrying.</p>
-      <p>Info: Using VPNs, proxies or public wifi might affect negatively your experience. If you are using one, please try to disable it to see if the problem persists.</p>
-      <br/>
-      <p>If, instead, you believe you have been blocked by accident, please report with a screenshot and a quick summary of what you were trying to visit. This will greatly help us improving our protection systems.</p>
-    MULTILINE
+    content      = local.custom_response_body
     content_type = "TEXT_HTML"
   }
 
@@ -679,10 +709,10 @@ resource "aws_wafv2_rule_group" "aws_managed_rule_labels" {
           }
         }
       }
-      # dynamic "challenge_config" { 
-      # # available in the console but seems to be not supported on tf (?) 
+      # dynamic "challenge_config" {
+      # # available in the console but seems to be not supported on tf (?)
       # # even if is mentioned in the docs https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_web_acl#challenge_config-block
-      # # and is in an open issue https://github.com/hashicorp/terraform-provider-aws/issues/29071 
+      # # and is in an open issue https://github.com/hashicorp/terraform-provider-aws/issues/29071
       #   for_each = rule.value.action == "challenge" ? [1] : []
       #   content {
       #     immunity_time_property {
