@@ -33,11 +33,16 @@ locals {
   ))
   rate_limit_response_key = "rate-limit-error"
   custom_response_body    = <<MULTILINE
-      <h1>HTTP Error 429 - Too Many Requests</h1>
-      <p>Your device sent us too many requests in the past 5 minutes. Please wait a few minutes before retrying.</p>
-      <p>Info: Using VPNs, proxies or public wifi might affect negatively your experience. If you are using one, please try to disable it to see if the problem persists.</p>
-      <br/>
-      <p>If, instead, you believe you have been blocked by accident, please report with a screenshot and a quick summary of what you were trying to visit. This will greatly help us improving our protection systems.</p>
+      <div style="font-family: Arial, sans-serif;text-align: center; padding: 50px; background-color: #f4f4f4;">
+        <div style="background-color: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); display: inline-block; max-width: 600px; margin: auto;">
+          <img src="${var.logo_path}" alt="Company Logo" style="width: 150px; margin-bottom: 20px;">
+          <h1 style="color: #e74c3c;">HTTP Error 429 - Too many requests</h1>
+          <p style="color: #555;">Your device sent us too many requests in the past 5 minutes. Please wait a few minutes before retrying.</p>
+          <p style="color: #888; font-size: 0.9em;">Info: Using VPNs, proxies or public wifi might affect negatively your experience. If you are using one, please try to disable it to see if the problem persists.</p>
+          <br/>
+          <p style="color: #333; margin-top: 20px;">If, instead, you believe you have been blocked by accident, please report with a screenshot and a quick summary of what you were trying to visit. This will greatly help us improving our protection systems.</p>
+        </div>
+      </div>
   MULTILINE
 
 }

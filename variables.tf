@@ -4,6 +4,12 @@ variable "waf_name" {
   type        = string
 }
 
+variable "logo_path" {
+  default     = ""
+  description = "Company logo path (for 429 pages)"
+  type        = string
+}
+
 variable "waf_scope" {
   default     = "CLOUDFRONT"
   description = "The scope of the deployed waf. Available options [CLOUDFRONT,REGIONAL]"
