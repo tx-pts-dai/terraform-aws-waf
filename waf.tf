@@ -19,7 +19,11 @@ locals {
   everybody_else_exclude_country_codes = distinct(flatten([ # find all the country_codes mentioned in our rules
     for rules in var.country_rates : [rules.country_codes]
   ]))
-
+  country_rate_chunks = chunklist(var.country_rates, 4)
+  country_rate_chunks_map = zipmap(
+    range(length(local.country_rate_chunks)),
+    local.country_rate_chunks
+  )
   group_whitelist_ipv6 = compact(concat(
     var.whitelisted_ips_v6,
     local.google_bots_ipv6, # empty if enable_google_bots_whitelist is set to false
@@ -577,30 +581,32 @@ resource "aws_wafv2_web_acl" "waf" {
       sampled_requests_enabled   = true
     }
   }
-  rule {
-    name     = "country_rate_rules"
-    priority = 70
 
-    override_action {
-      none {}
-    }
-
-    statement {
-      rule_group_reference_statement {
-        arn = aws_wafv2_rule_group.country_rate_rules.arn
+  dynamic "rule" {
+    for_each = aws_wafv2_rule_group.country_rate_rules
+    content {
+      name     = "country_rate_rules_${rule.key}"
+      priority = 70 + tonumber(rule.key)
+      override_action {
+        none {}
       }
-    }
-
-    visibility_config {
-      cloudwatch_metrics_enabled = true
-      metric_name                = "country_rate_rules"
-      sampled_requests_enabled   = true
+      statement {
+        rule_group_reference_statement {
+          arn = rule.value.arn
+        }
+      }
+      visibility_config {
+        cloudwatch_metrics_enabled = true
+        metric_name                = "country_rate_rules_${rule.key}"
+        sampled_requests_enabled   = true
+      }
     }
   }
 }
 
 resource "aws_wafv2_rule_group" "country_rate_rules" {
-  name     = "country_rate_rules"
+  for_each = local.country_rate_chunks_map
+  name     = "country_rate_rules_${each.key}"
   scope    = var.waf_scope
   capacity = 50
   custom_response_body {
@@ -609,7 +615,7 @@ resource "aws_wafv2_rule_group" "country_rate_rules" {
     content_type = "TEXT_HTML"
   }
   dynamic "rule" {
-    for_each = var.country_rates
+    for_each = each.value
     content {
       name     = rule.value.name
       priority = rule.value.priority
