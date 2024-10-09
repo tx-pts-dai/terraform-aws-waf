@@ -14,11 +14,11 @@ It's designed to propose the following rules:
 |1-9 | block_uri_path_string | |
 |10-19 | block_articles | |
 |20-29 | block_regex_pattern | |
-|30-39 free | Free priority range for additional rules |
+|30-39 free | Free priority range for additional rules | |
 |40 | whitelisted_ips_v4 | Automatically download and whitelist bots IPV4s (see variables) and whitelist any list of IPV4 ranges|
 |41 | whitelisted_ips_v6 | Automatically download and whitelist bots IPV6s (see variables) and whitelist any list of IPV6 ranges|
 |42 | Rate_limit_everything_apart_from_CH | This rule is meant to be a failsafe switch in case of attack. Change "count" to "block" in the console if you are under attack and want to rate limit to a low number of requests every country except Switzerland |
-|43 | count_requests_from_ch | 
+|43 | count_requests_from_ch | |
 |44-49 | free | Free priority range for additional rules |
 |50-59 | AWS Managed rule groups | Each group could contain multiple labels, please refer to the [doc](https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-list.html)|
 |60 | AWS managed rule labels rate limit | For a list of labels is possible to define an action: block, captcha or challenge. In all cases is possible to define a rate limit or directly apply the action |
@@ -37,6 +37,7 @@ The module will also deploy several `AWS Athena` resources by default. These inc
 To activate waf logs set the `var.enable_logging` to `true` (`false` by default).
 
 ### Query WAF logs
+
 In order to be able to query WAF logs saved on the S3 Bucket, we need to use the AWS Athena service:
 
 * Once Logs have been activated we need to connect to Athena service via AWS console.
@@ -79,7 +80,7 @@ resource "aws_wafv2_web_acl_association" "example" {
 }
 ```
 
-### REGIONAL waf notes:
+### REGIONAL waf notes
 
 General considerations for using forwarded IP addresses
 
@@ -102,16 +103,12 @@ If the IP addresses inside the header are malformed or invalid, AWS WAF designat
 If the header that you specify isn’t present in a request, AWS WAF doesn’t apply the rule to the request at all. This means that AWS WAF doesn't apply the rule action and doesn't apply the fallback behavior.
 A rule statement that uses a forwarded IP header for the IP address won’t use the IP address that’s reported by the web request origin. ([source](https://docs.aws.amazon.com/waf/latest/developerguide/waf-rule-statement-forwarded-ip-address.html))
 
-## Problems with the Oracle Data Cloud Crawler or Google bots ?
-
-If the oracle data cloud regex throws errors the automatic parsing can be disabled by:
-* setting `enable_oracle_crawler_whitelist = false`
-
-If the `data.http.oracle` structure throws errors the url can be overridden by:
-* setting the variable `oracle_data_cloud_crawlers_url` to a valid URL
+## Problems with the Google bots ?
 
 If the google bot jsonecode throws errors it can be disabled by:
+
 * setting `enable_google_bots_whitelist = false`
 
 If the `data.http.googlebot` structure throws errors the url can be overridden by:
+
 * setting the variable `google_bots_url` to a valid URL

@@ -14,7 +14,6 @@
 # 70-79: country_rates
 # 80: everybody_else_limit
 
-
 locals {
   everybody_else_exclude_country_codes = distinct(flatten([ # find all the country_codes mentioned in our rules
     for rules in var.country_rates : [rules.country_codes]
@@ -30,10 +29,9 @@ locals {
   ))
   group_whitelist_ipv4 = compact(concat(
     var.whitelisted_ips_v4,
-    local.google_bots_ipv4,           # empty if enable_google_bots_whitelist is set to false
-    local.oracle_data_cloud_crawlers, # empty if enable_oracle_crawler_whitelist is set to false
-    local.parsely_crawlers,           # empty if enable_parsely_crawlers_whitelist is set to false
-    local.k6_load_generators_ipv4,    # empty if enable_k6_whitelist is set to false
+    local.google_bots_ipv4,        # empty if enable_google_bots_whitelist is set to false
+    local.parsely_crawlers,        # empty if enable_parsely_crawlers_whitelist is set to false
+    local.k6_load_generators_ipv4, # empty if enable_k6_whitelist is set to false
   ))
   rate_limit_response_key = "rate-limit-error"
   custom_response_body    = <<MULTILINE
