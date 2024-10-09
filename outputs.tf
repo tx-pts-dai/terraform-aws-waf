@@ -8,10 +8,6 @@ output "web_acl_arn" {
   description = "Web ACL arn"
 }
 
-output "oracle_data_cloud_crawlers" {
-  value       = local.oracle_data_cloud_crawlers
-  description = "List of Oracle Data CLoud Crawlers whitelisted"
-}
 output "google_bots" {
   value = concat(
     [for ip in local.google_bots_ipv4 : ip if ip != null],

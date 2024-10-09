@@ -24,8 +24,6 @@ module "waf" {
   waf_name                          = "cloudfront-waf"
   waf_scope                         = "CLOUDFRONT"
   waf_logs_retention                = 7
-  enable_oracle_crawler_whitelist   = true
-  oracle_data_cloud_crawlers_url    = "https://www.oracle.com/corporate/acquisitions/grapeshot/crawler.html"
   enable_google_bots_whitelist      = true
   google_bots_url                   = "https://developers.google.com/search/apis/ipranges/googlebot.json"
   enable_parsely_crawlers_whitelist = false
