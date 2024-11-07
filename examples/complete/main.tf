@@ -83,6 +83,20 @@ module "waf" {
       priority      = 72
     }
   ]
+  country_count_rules = [
+    {
+      name          = "count-CH"
+      limit         = 4000
+      country_codes = ["CH"]
+      priority      = 80
+    },
+    {
+      name          = "count-DE"
+      limit         = 1000
+      country_codes = ["DE"]
+      priority      = 81
+    }
+  ]
   everybody_else_limit = 0
   limit_search_requests_by_countries = {
     limit         = 100

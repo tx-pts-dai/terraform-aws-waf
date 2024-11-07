@@ -306,3 +306,32 @@ variable "logs_bucket_name_override" {
   default     = null
   type        = string
 }
+
+variable "country_count_rules" {
+  description = "Enable the deployment of rules that count the requests from specific countries."
+  default     = []
+  type = list(object({
+    name          = string
+    limit         = number
+    priority      = number
+    country_codes = set(string)
+  }))
+  # Example
+  # [
+  #   { name         = "Group_1-CH"
+  #     limit        = 50000
+  #     country_codes = ["CH"]
+  #     priority     = 30
+  #   },
+  #   { name         = "Group_2-DE_AT_FR"
+  #     limit        = 4000
+  #     country_codes = ["AT", "FR", "DE"]
+  #     priority     = 31
+  #   },
+  #   ...
+  # ]
+  # validation {
+  #   condition     = alltrue([for uri in var.country_rates : uri.priority >= 70 && uri.priority < 80])
+  #   error_message = "var.country_rates.priority must be between 70 and 80"
+  # }
+}

@@ -8,7 +8,8 @@
 # 41: whitelisted_ips_v6
 # 42: Rate_limit_everything_apart_from_CH
 # 43: count_requests_from_ch
-# 44-49: free
+# 44: whitelist_based_on_headers
+# 45-49: free
 # 50-59: AWS Managed rule groups (these are the ones that only count and label requests)
 # 60: AWS managed rule labels rate limit
 # 70-79: country_rates
@@ -222,7 +223,7 @@ resource "aws_wafv2_web_acl" "waf" {
     for_each = var.whitelisted_headers != null ? [1] : []
     content {
       name     = "Whitelist_based_on_headers"
-      priority = 45
+      priority = 44
       action {
         allow {}
       }
@@ -600,6 +601,26 @@ resource "aws_wafv2_web_acl" "waf" {
       }
     }
   }
+  dynamic "rule" {
+    for_each = length(var.country_count_rules) > 0 ? [1] : [0]
+    content {
+      name     = "country_count_rules"
+      priority = 80
+      override_action {
+        none {}
+      }
+      statement {
+        rule_group_reference_statement {
+          arn = try(aws_wafv2_rule_group.country_count_rules[0].arn, "")
+        }
+      }
+      visibility_config {
+        cloudwatch_metrics_enabled = false
+        metric_name                = "country_count_rules"
+        sampled_requests_enabled   = false
+      }
+    }
+  }
 }
 
 resource "aws_wafv2_rule_group" "country_rate_rules" {
@@ -801,5 +822,49 @@ resource "aws_wafv2_rule_group" "aws_managed_rule_labels" {
     cloudwatch_metrics_enabled = true
     metric_name                = "aws_managed_rule_labels"
     sampled_requests_enabled   = true
+  }
+}
+resource "aws_wafv2_rule_group" "country_count_rules" {
+  count    = length(var.country_count_rules) > 0 ? 1 : 0
+  name     = "country_count_rules"
+  scope    = var.waf_scope
+  capacity = 100
+  dynamic "rule" {
+    for_each = var.country_count_rules
+    content {
+      name     = rule.value.name
+      priority = rule.value.priority
+      action {
+        count {}
+      }
+      statement {
+        rate_based_statement {
+          aggregate_key_type = "IP"
+          limit              = rule.value.limit
+          scope_down_statement {
+            geo_match_statement {
+              country_codes = rule.value.country_codes
+              dynamic "forwarded_ip_config" {
+                for_each = var.waf_scope == "REGIONAL" ? [1] : []
+                content {
+                  header_name       = "X-Forwarded-For"
+                  fallback_behavior = "MATCH"
+                }
+              }
+            }
+          }
+        }
+      }
+      visibility_config {
+        cloudwatch_metrics_enabled = true
+        metric_name                = rule.value.name
+        sampled_requests_enabled   = true
+      }
+    }
+  }
+  visibility_config {
+    cloudwatch_metrics_enabled = false
+    metric_name                = "country_count_rules"
+    sampled_requests_enabled   = false
   }
 }
