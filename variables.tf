@@ -318,20 +318,16 @@ variable "country_count_rules" {
   }))
   # Example
   # [
-  #   { name         = "Group_1-CH"
+  #   { name         = "count-CH"
   #     limit        = 50000
   #     country_codes = ["CH"]
-  #     priority     = 30
+  #     priority     = 90
   #   },
-  #   { name         = "Group_2-DE_AT_FR"
+  #   { name         = "count-DE_AT_FR"
   #     limit        = 4000
   #     country_codes = ["AT", "FR", "DE"]
-  #     priority     = 31
+  #     priority     = 91
   #   },
   #   ...
   # ]
-  # validation {
-  #   condition     = alltrue([for uri in var.country_rates : uri.priority >= 70 && uri.priority < 80])
-  #   error_message = "var.country_rates.priority must be between 70 and 80"
-  # }
 }

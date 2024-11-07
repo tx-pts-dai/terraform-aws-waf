@@ -14,6 +14,7 @@
 # 60: AWS managed rule labels rate limit
 # 70-79: country_rates
 # 80: everybody_else_limit
+# 90: country_count_rules
 
 locals {
   everybody_else_exclude_country_codes = distinct(flatten([ # find all the country_codes mentioned in our rules
@@ -605,7 +606,7 @@ resource "aws_wafv2_web_acl" "waf" {
     for_each = length(var.country_count_rules) > 0 ? [1] : [0]
     content {
       name     = "country_count_rules"
-      priority = 80
+      priority = 90
       override_action {
         none {}
       }

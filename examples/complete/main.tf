@@ -88,13 +88,13 @@ module "waf" {
       name          = "count-CH"
       limit         = 4000
       country_codes = ["CH"]
-      priority      = 80
+      priority      = 90
     },
     {
       name          = "count-DE"
       limit         = 1000
       country_codes = ["DE"]
-      priority      = 81
+      priority      = 91
     }
   ]
   everybody_else_limit = 0
