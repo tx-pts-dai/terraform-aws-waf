@@ -25,6 +25,7 @@ It's designed to propose the following rules:
 |60 | AWS managed rule labels rate limit | For a list of labels is possible to define an action: block, captcha or challenge. In all cases is possible to define a rate limit or directly apply the action |
 |70-79 | country_rates | Geographical rules|
 |80 | everybody_else_limit | The blocking limit for all country_codes which are not covered by the country_rates rule|
+|90 | country_count_rules | |
 
 ## Waf logging
 
