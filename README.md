@@ -19,11 +19,13 @@ It's designed to propose the following rules:
 |41 | whitelisted_ips_v6 | Automatically download and whitelist bots IPV6s (see variables) and whitelist any list of IPV6 ranges|
 |42 | Rate_limit_everything_apart_from_CH | This rule is meant to be a failsafe switch in case of attack. Change "count" to "block" in the console if you are under attack and want to rate limit to a low number of requests every country except Switzerland |
 |43 | count_requests_from_ch | |
-|44-49 | free | Free priority range for additional rules |
+|44 | whitelist_based_on_headers | |
+|45-49 | free | Free priority range for additional rules |
 |50-59 | AWS Managed rule groups | Each group could contain multiple labels, please refer to the [doc](https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-list.html)|
 |60 | AWS managed rule labels rate limit | For a list of labels is possible to define an action: block, captcha or challenge. In all cases is possible to define a rate limit or directly apply the action |
 |70-79 | country_rates | Geographical rules|
 |80 | everybody_else_limit | The blocking limit for all country_codes which are not covered by the country_rates rule|
+|90 | country_count_rules | |
 
 ## Waf logging
 
