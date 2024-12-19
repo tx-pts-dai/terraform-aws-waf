@@ -79,7 +79,7 @@ resource "aws_wafv2_regex_pattern_set" "string" {
 }
 
 resource "aws_wafv2_web_acl" "waf" {
-  name  = "${var.waf_name}_var.waf_name"
+  name  = "${var.waf_name}_${var.waf_name}"
   scope = var.waf_scope
   default_action {
     allow {}
