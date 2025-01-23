@@ -105,7 +105,6 @@ module "waf" {
   block_uri_path_string     = []
   block_articles            = []
   block_regex_pattern       = {}
-  enable_logging            = false
   logs_bucket_name_override = null
 }
 
@@ -200,11 +199,10 @@ module "waf_parallel" {
   block_uri_path_string     = []
   block_articles            = []
   block_regex_pattern       = {}
-  enable_logging            = false
   logs_bucket_name_override = null
 
   # WHEN YOU WANT TO DEPLOY A SECOND WAF IN PARALLEL, YOU NEED TO SET THIS VARIABLE TO FALSE
-  deploy_logs_bucket           = false
+  deploy_logs                  = false
   alternative_logs_bucket_name = module.waf.logs_bucket_name
   alternative_logs_bucket_arn  = module.waf.logs_bucket_arn
 }

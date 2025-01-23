@@ -18,11 +18,11 @@ output "google_bots" {
 
 
 output "logs_bucket_name" {
-  value       = var.deploy_logs_bucket ? aws_s3_bucket.logs[0].id : null
+  value       = var.deploy_logs ? aws_s3_bucket.logs[0].id : null
   description = "Logs bucket name"
 }
 
 output "logs_bucket_arn" {
-  value       = var.deploy_logs_bucket ? aws_s3_bucket.logs[0].arn : null
+  value       = var.deploy_logs ? aws_s3_bucket.logs[0].arn : null
   description = "Logs bucket arn"
 }
