@@ -36,7 +36,7 @@ The module will also deploy several `AWS Athena` resources by default. These inc
 * several `Athena queries`
 * and an S3 bucket where waf logs will be saved if activated.
 
-To activate waf logs set the `var.deploy_logs` to `true` (by default).
+To activate waf logs set the `var.enable_logging` to `true` (by default).
 
 ### Query WAF logs
 
