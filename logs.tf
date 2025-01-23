@@ -84,7 +84,6 @@ resource "aws_s3_bucket" "logs" {
 
 # See issue <https://github.com/hashicorp/terraform-provider-aws/issues/28353>
 resource "aws_s3_bucket_ownership_controls" "logs" {
-  count  = var.deploy_logs_bucket ? 1 : 0
   bucket = var.deploy_logs_bucket ? aws_s3_bucket.logs[0].id : var.alternative_logs_bucket_name
   rule {
     object_ownership = "BucketOwnerPreferred"
@@ -92,7 +91,6 @@ resource "aws_s3_bucket_ownership_controls" "logs" {
 }
 
 resource "aws_s3_bucket_acl" "logs" {
-  count  = var.deploy_logs_bucket ? 1 : 0
   bucket = var.deploy_logs_bucket ? aws_s3_bucket.logs[0].id : var.alternative_logs_bucket_name
   acl    = "private"
 
@@ -100,7 +98,6 @@ resource "aws_s3_bucket_acl" "logs" {
 }
 
 resource "aws_s3_bucket_lifecycle_configuration" "logs" {
-  count  = var.deploy_logs_bucket ? 1 : 0
   bucket = var.deploy_logs_bucket ? aws_s3_bucket.logs[0].id : var.alternative_logs_bucket_name
   rule {
     id = "waf-logs"
@@ -112,7 +109,6 @@ resource "aws_s3_bucket_lifecycle_configuration" "logs" {
 }
 
 resource "aws_wafv2_web_acl_logging_configuration" "logs" {
-  count                   = var.enable_logging ? 1 : 0
   log_destination_configs = [var.deploy_logs_bucket ? aws_s3_bucket.logs[0].arn : var.alternative_logs_bucket_arn]
   resource_arn            = aws_wafv2_web_acl.waf.arn
 }
