@@ -306,12 +306,6 @@ variable "alternative_logs_bucket_name" {
   type        = string
 }
 
-variable "alternative_logs_bucket_arn" {
-  description = "Override the default bucket destination for waf logs. If 'deploy_logs' is set to false, this variable must be set."
-  default     = null
-  type        = string
-}
-
 variable "logs_bucket_name_override" {
   description = "Override the default bucket name for waf logs. Default name: `aws-waf-logs-<lower(var.waf_scope)>-<data.aws_caller_identity.current.account_id>"
   default     = null

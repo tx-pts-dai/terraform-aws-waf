@@ -1,4 +1,6 @@
-
+data "aws_s3_bucket" "log_bucket" {
+  bucket = var.alternative_logs_bucket_name
+}
 resource "aws_athena_workgroup" "waf" {
   count         = var.deploy_logs ? 1 : 0
   name          = "waf-logs-${var.waf_name}"
@@ -110,6 +112,6 @@ resource "aws_s3_bucket_lifecycle_configuration" "logs" {
 
 resource "aws_wafv2_web_acl_logging_configuration" "logs" {
   count                   = var.enable_logging ? 1 : 0
-  log_destination_configs = [var.deploy_logs ? aws_s3_bucket.logs[0].arn : var.alternative_logs_bucket_arn]
+  log_destination_configs = [var.deploy_logs ? aws_s3_bucket.logs[0].arn : data.aws_s3_bucket.log_bucket.arn]
   resource_arn            = aws_wafv2_web_acl.waf.arn
 }
