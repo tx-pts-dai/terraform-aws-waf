@@ -294,6 +294,12 @@ variable "deploy_logs" {
   type        = bool
 }
 
+variable "enable_logging" {
+  description = "Enables or disable the logging (independant of the buckets/athena)"
+  default     = false
+  type        = bool
+}
+
 variable "alternative_logs_bucket_name" {
   description = "Override the default bucket destination for waf logs. If 'deploy_logs' is set to false, this variable must be set."
   default     = null
