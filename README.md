@@ -114,3 +114,34 @@ If the google bot jsonecode throws errors it can be disabled by:
 If the `data.http.googlebot` structure throws errors the url can be overridden by:
 
 * setting the variable `google_bots_url` to a valid URL
+
+## How to setup parralel WAFs ?
+If you need to deploy more than one WAF in the same account, you can choose between letting each waf managing their own logs, or you can reuse an existing bucket and pass it as a parameter.
+
+If you do create a bucket for logs outside of this module, and use the alternative bucket, you need to set up the following resources on the bucket :
+```
+resource "aws_s3_bucket_ownership_controls" "logs" {
+  bucket = aws_s3_bucket.logs.id
+  rule {
+    object_ownership = "BucketOwnerPreferred"
+  }
+}
+
+resource "aws_s3_bucket_acl" "logs" {
+  bucket = aws_s3_bucket.logs.id
+  acl    = "private"
+
+  depends_on = [aws_s3_bucket_ownership_controls.logs]
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "logs" {
+  bucket = aws_s3_bucket.logs.id
+  rule {
+    id = "waf-logs"
+    expiration {
+      days = var.waf_logs_retention
+    }
+    status = "Enabled"
+  }
+}
+```
