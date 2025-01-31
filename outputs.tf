@@ -15,3 +15,14 @@ output "google_bots" {
   )
   description = "List of Google bots whitelisted"
 }
+
+
+output "logs_bucket_name" {
+  value       = var.deploy_logs ? aws_s3_bucket.logs[0].id : null
+  description = "Logs bucket name"
+}
+
+output "logs_bucket_arn" {
+  value       = var.deploy_logs ? aws_s3_bucket.logs[0].arn : null
+  description = "Logs bucket arn"
+}
