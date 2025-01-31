@@ -115,7 +115,7 @@ If the `data.http.googlebot` structure throws errors the url can be overridden b
 
 * setting the variable `google_bots_url` to a valid URL
 
-## How to setup parralel WAFs ?
+## How to setup parallel WAFs ?
 If you need to deploy more than one WAF in the same account, you can choose between letting each waf managing their own logs, or you can reuse an existing bucket and pass it as a parameter.
 
 If you do create a bucket for logs outside of this module, and use the alternative bucket, you need to set up the following resources on the bucket :
