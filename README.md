@@ -145,3 +145,14 @@ resource "aws_s3_bucket_lifecycle_configuration" "logs" {
   }
 }
 ```
+
+<!-- BEGIN_TF_DOCS -->
+<!-- END_TF_DOCS -->
+
+## Authors
+
+Module is maintained by [Alfredo Gottardo](https://github.com/AlfGot), [David Beauvererd](https://github.com/Davidoutz), [Davide Cammarata](https://github.com/DCamma), [Demetrio Carrara](https://github.com/sgametrio), [Roland Bapst](https://github.com/rbapst-tamedia) and [Samuel Wibrow](https://github.com/swibrow)
+
+## License
+
+Apache 2 Licensed. See [LICENSE](LICENSE) for full details.
