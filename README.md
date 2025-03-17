@@ -147,6 +147,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "logs" {
 ```
 
 <!-- BEGIN_TF_DOCS -->
+
 <!-- END_TF_DOCS -->
 
 ## Authors
