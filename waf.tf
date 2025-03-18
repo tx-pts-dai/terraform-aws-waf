@@ -53,7 +53,7 @@ locals {
 
 resource "aws_wafv2_ip_set" "whitelisted_ips_v4" {
   count              = length(local.group_whitelist_ipv4) > 0 ? 1 : 0
-  name               = "whitelisted_ips_v4"
+  name               = "${var.waf_name}_whitelisted_ips_v4"
   scope              = var.waf_scope
   ip_address_version = "IPV4"
   addresses          = local.group_whitelist_ipv4
@@ -61,7 +61,7 @@ resource "aws_wafv2_ip_set" "whitelisted_ips_v4" {
 
 resource "aws_wafv2_ip_set" "whitelisted_ips_v6" {
   count              = length(local.group_whitelist_ipv6) > 0 ? 1 : 0
-  name               = "whitelisted_ips_v6"
+  name               = "${var.waf_name}_whitelisted_ips_v6"
   scope              = var.waf_scope
   ip_address_version = "IPV6"
   addresses          = local.group_whitelist_ipv6
@@ -69,7 +69,7 @@ resource "aws_wafv2_ip_set" "whitelisted_ips_v6" {
 
 resource "aws_wafv2_regex_pattern_set" "string" {
   for_each    = var.block_regex_pattern
-  name        = each.key
+  name        = "${var.waf_name}_${each.key}"
   description = each.value.description
   scope       = var.waf_scope
 
@@ -79,7 +79,7 @@ resource "aws_wafv2_regex_pattern_set" "string" {
 }
 
 resource "aws_wafv2_web_acl" "waf" {
-  name  = var.waf_name
+  name  = "${var.waf_name}_${var.waf_name}"
   scope = var.waf_scope
   default_action {
     allow {}
@@ -99,7 +99,7 @@ resource "aws_wafv2_web_acl" "waf" {
   dynamic "rule" {
     for_each = length(local.group_whitelist_ipv4) == 0 ? [] : [1]
     content {
-      name     = "whitelisted_ips_v4"
+      name     = "${var.waf_name}_whitelisted_ips_v4"
       priority = 40
       action {
         allow {}
@@ -119,7 +119,7 @@ resource "aws_wafv2_web_acl" "waf" {
       }
       visibility_config {
         cloudwatch_metrics_enabled = true
-        metric_name                = "whitelisted_ips_v4"
+        metric_name                = "${var.waf_name}_whitelisted_ips_v4"
         sampled_requests_enabled   = true
       }
     }
@@ -128,7 +128,7 @@ resource "aws_wafv2_web_acl" "waf" {
   dynamic "rule" {
     for_each = length(local.group_whitelist_ipv6) == 0 ? [] : [1]
     content {
-      name     = "whitelisted_ips_v6"
+      name     = "${var.waf_name}_whitelisted_ips_v6"
       priority = 41
       action {
         allow {}
@@ -148,7 +148,7 @@ resource "aws_wafv2_web_acl" "waf" {
       }
       visibility_config {
         cloudwatch_metrics_enabled = true
-        metric_name                = "whitelisted_ips_v6"
+        metric_name                = "${var.waf_name}_whitelisted_ips_v6"
         sampled_requests_enabled   = true
       }
     }
@@ -158,7 +158,7 @@ resource "aws_wafv2_web_acl" "waf" {
   # Change "count" to "block" in the console if you are under attack and want to
   # rate limit to a low number of requests every country except Switzerland
   rule {
-    name     = "rate_limit_everything_apart_from_CH"
+    name     = "${var.waf_name}_rate_limit_everything_apart_from_CH"
     priority = 42
     action {
       count {}
@@ -187,7 +187,7 @@ resource "aws_wafv2_web_acl" "waf" {
     }
     visibility_config {
       cloudwatch_metrics_enabled = true
-      metric_name                = "rate_limit_everything_apart_from_CH"
+      metric_name                = "${var.waf_name}_rate_limit_everything_apart_from_CH"
       sampled_requests_enabled   = true
     }
   }
@@ -195,7 +195,7 @@ resource "aws_wafv2_web_acl" "waf" {
   dynamic "rule" {
     for_each = var.count_requests_from_ch ? [1] : []
     content {
-      name     = "Switzerland"
+      name     = "${var.waf_name}_Switzerland"
       priority = 43
       action {
         count {}
@@ -214,7 +214,7 @@ resource "aws_wafv2_web_acl" "waf" {
       }
       visibility_config {
         cloudwatch_metrics_enabled = true
-        metric_name                = "Switzerland"
+        metric_name                = "${var.waf_name}_Switzerland"
         sampled_requests_enabled   = true
       }
     }
@@ -223,7 +223,7 @@ resource "aws_wafv2_web_acl" "waf" {
   dynamic "rule" {
     for_each = var.whitelisted_headers != null ? [1] : []
     content {
-      name     = "Whitelist_based_on_headers"
+      name     = "${var.waf_name}_Whitelist_based_on_headers"
       priority = 44
       action {
         allow {}
@@ -275,7 +275,7 @@ resource "aws_wafv2_web_acl" "waf" {
       }
       visibility_config {
         cloudwatch_metrics_enabled = true
-        metric_name                = "Whitelisted_headers"
+        metric_name                = "${var.waf_name}_Whitelisted_headers"
         sampled_requests_enabled   = true
       }
     }
@@ -284,7 +284,7 @@ resource "aws_wafv2_web_acl" "waf" {
   dynamic "rule" {
     for_each = var.aws_managed_rule_groups
     content {
-      name     = rule.value.name
+      name     = "${var.waf_name}_${rule.value.name}"
       priority = rule.value.priority
       override_action {
         count {} # valid blocks: count or none
@@ -297,7 +297,7 @@ resource "aws_wafv2_web_acl" "waf" {
       }
       visibility_config {
         cloudwatch_metrics_enabled = true
-        metric_name                = rule.value.name
+        metric_name                = "${var.waf_name}_${rule.value.name}"
         sampled_requests_enabled   = true
       }
     }
@@ -306,7 +306,7 @@ resource "aws_wafv2_web_acl" "waf" {
   dynamic "rule" {
     for_each = var.everybody_else_limit == 0 ? [] : [1]
     content {
-      name     = "Everybody_else"
+      name     = "${var.waf_name}_Everybody_else"
       priority = 80
       action {
         block {
@@ -341,7 +341,7 @@ resource "aws_wafv2_web_acl" "waf" {
       }
       visibility_config {
         cloudwatch_metrics_enabled = true
-        metric_name                = "Everybody_else"
+        metric_name                = "${var.waf_name}_Everybody_else"
         sampled_requests_enabled   = true
       }
     }
@@ -350,7 +350,7 @@ resource "aws_wafv2_web_acl" "waf" {
   dynamic "rule" {
     for_each = length(var.limit_search_requests_by_countries.country_codes) > 0 ? [1] : []
     content {
-      name     = "limit_search_requests_by_countries"
+      name     = "${var.waf_name}_limit_search_requests_by_countries"
       priority = 0
       action {
         block {
@@ -401,7 +401,7 @@ resource "aws_wafv2_web_acl" "waf" {
       }
       visibility_config {
         cloudwatch_metrics_enabled = true
-        metric_name                = "limit_search_requests_by_countries"
+        metric_name                = "${var.waf_name}_limit_search_requests_by_countries"
         sampled_requests_enabled   = true
       }
     }
@@ -410,7 +410,7 @@ resource "aws_wafv2_web_acl" "waf" {
   dynamic "rule" {
     for_each = var.block_uri_path_string
     content {
-      name     = rule.value.name
+      name     = "${var.waf_name}_${rule.value.name}"
       priority = rule.value.priority
 
       action {
@@ -435,7 +435,7 @@ resource "aws_wafv2_web_acl" "waf" {
 
       visibility_config {
         cloudwatch_metrics_enabled = true
-        metric_name                = rule.value.name
+        metric_name                = "${var.waf_name}_${rule.value.name}"
         sampled_requests_enabled   = true
       }
     }
@@ -444,7 +444,7 @@ resource "aws_wafv2_web_acl" "waf" {
   dynamic "rule" {
     for_each = var.block_articles
     content {
-      name     = rule.value.name
+      name     = "${var.waf_name}_${rule.value.name}"
       priority = rule.value.priority
       action {
         block {}
@@ -508,7 +508,7 @@ resource "aws_wafv2_web_acl" "waf" {
       }
       visibility_config {
         cloudwatch_metrics_enabled = true
-        metric_name                = rule.value.name
+        metric_name                = "${var.waf_name}_${rule.value.name}"
         sampled_requests_enabled   = true
       }
     }
@@ -562,7 +562,7 @@ resource "aws_wafv2_web_acl" "waf" {
     }
   }
   rule {
-    name     = "aws_managed_rule_labels"
+    name     = "${var.waf_name}_aws_managed_rule_labels"
     priority = 60
 
     override_action {
@@ -577,7 +577,7 @@ resource "aws_wafv2_web_acl" "waf" {
 
     visibility_config {
       cloudwatch_metrics_enabled = true
-      metric_name                = "aws_managed_rule_labels"
+      metric_name                = "${var.waf_name}_aws_managed_rule_labels"
       sampled_requests_enabled   = true
     }
   }
@@ -585,7 +585,7 @@ resource "aws_wafv2_web_acl" "waf" {
   dynamic "rule" {
     for_each = aws_wafv2_rule_group.country_rate_rules
     content {
-      name     = "country_rate_rules_${rule.key}"
+      name     = "${var.waf_name}_country_rate_rules_${rule.key}"
       priority = 70 + tonumber(rule.key)
       override_action {
         none {}
@@ -597,7 +597,7 @@ resource "aws_wafv2_web_acl" "waf" {
       }
       visibility_config {
         cloudwatch_metrics_enabled = true
-        metric_name                = "country_rate_rules_${rule.key}"
+        metric_name                = "${var.waf_name}_country_rate_rules_${rule.key}"
         sampled_requests_enabled   = true
       }
     }
@@ -605,7 +605,7 @@ resource "aws_wafv2_web_acl" "waf" {
   dynamic "rule" {
     for_each = length(var.country_count_rules) > 0 ? [1] : [0]
     content {
-      name     = "country_count_rules"
+      name     = "${var.waf_name}_country_count_rules"
       priority = 90
       override_action {
         none {}
@@ -617,7 +617,7 @@ resource "aws_wafv2_web_acl" "waf" {
       }
       visibility_config {
         cloudwatch_metrics_enabled = true
-        metric_name                = "country_count_rules"
+        metric_name                = "${var.waf_name}_country_count_rules"
         sampled_requests_enabled   = true
       }
     }
@@ -626,7 +626,7 @@ resource "aws_wafv2_web_acl" "waf" {
 
 resource "aws_wafv2_rule_group" "country_rate_rules" {
   for_each = local.country_rate_chunks_map
-  name     = "country_rate_rules_${each.key}"
+  name     = "${var.waf_name}_country_rate_rules_${each.key}"
   scope    = var.waf_scope
   capacity = 50
   custom_response_body {
@@ -686,19 +686,19 @@ resource "aws_wafv2_rule_group" "country_rate_rules" {
       }
       visibility_config {
         cloudwatch_metrics_enabled = true
-        metric_name                = rule.value.name
+        metric_name                = "${var.waf_name}_${rule.value.name}"
         sampled_requests_enabled   = true
       }
     }
   }
   visibility_config {
     cloudwatch_metrics_enabled = true
-    metric_name                = "country_rate_rules"
+    metric_name                = "${var.waf_name}_country_rate_rules"
     sampled_requests_enabled   = true
   }
 }
 resource "aws_wafv2_rule_group" "aws_managed_rule_labels" {
-  name     = "aws_managed_rule_labels"
+  name     = "${var.waf_name}_aws_managed_rule_labels"
   scope    = var.waf_scope
   capacity = 50
 
@@ -711,7 +711,7 @@ resource "aws_wafv2_rule_group" "aws_managed_rule_labels" {
   dynamic "rule" {
     for_each = var.aws_managed_rule_labels
     content {
-      name     = rule.value.name
+      name     = "${var.waf_name}_${rule.value.name}"
       priority = rule.value.priority
       action {
         dynamic "block" {
@@ -814,26 +814,26 @@ resource "aws_wafv2_rule_group" "aws_managed_rule_labels" {
       }
       visibility_config {
         cloudwatch_metrics_enabled = true
-        metric_name                = rule.value.name
+        metric_name                = "${var.waf_name}_${rule.value.name}"
         sampled_requests_enabled   = true
       }
     }
   }
   visibility_config {
     cloudwatch_metrics_enabled = true
-    metric_name                = "aws_managed_rule_labels"
+    metric_name                = "${var.waf_name}_aws_managed_rule_labels"
     sampled_requests_enabled   = true
   }
 }
 resource "aws_wafv2_rule_group" "country_count_rules" {
   count    = length(var.country_count_rules) > 0 ? 1 : 0
-  name     = "country_count_rules"
+  name     = "${var.waf_name}_country_count_rules"
   scope    = var.waf_scope
   capacity = 100
   dynamic "rule" {
     for_each = var.country_count_rules
     content {
-      name     = rule.value.name
+      name     = "${var.waf_name}_${rule.value.name}"
       priority = rule.value.priority
       action {
         count {}
@@ -858,14 +858,14 @@ resource "aws_wafv2_rule_group" "country_count_rules" {
       }
       visibility_config {
         cloudwatch_metrics_enabled = true
-        metric_name                = rule.value.name
+        metric_name                = "${var.waf_name}_${rule.value.name}"
         sampled_requests_enabled   = true
       }
     }
   }
   visibility_config {
     cloudwatch_metrics_enabled = true
-    metric_name                = "country_count_rules"
+    metric_name                = "${var.waf_name}_country_count_rules"
     sampled_requests_enabled   = true
   }
 }
