@@ -145,3 +145,104 @@ resource "aws_s3_bucket_lifecycle_configuration" "logs" {
   }
 }
 ```
+
+<!-- BEGIN_TF_DOCS -->
+## Requirements
+
+| Name | Version |
+|------|---------|
+| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.3.0 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 4.0 |
+| <a name="requirement_http"></a> [http](#requirement\_http) | >= 3.0 |
+
+## Providers
+
+| Name | Version |
+|------|---------|
+| <a name="provider_aws"></a> [aws](#provider\_aws) | >= 4.0 |
+| <a name="provider_http"></a> [http](#provider\_http) | >= 3.0 |
+
+## Modules
+
+No modules.
+
+## Resources
+
+| Name | Type |
+|------|------|
+| [aws_athena_database.waf](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/athena_database) | resource |
+| [aws_athena_named_query.blocked_requests](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/athena_named_query) | resource |
+| [aws_athena_named_query.count_group_by](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/athena_named_query) | resource |
+| [aws_athena_named_query.first_logs_query](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/athena_named_query) | resource |
+| [aws_athena_named_query.per_ip_blocked_requests](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/athena_named_query) | resource |
+| [aws_athena_named_query.requests_per_client_ip](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/athena_named_query) | resource |
+| [aws_athena_named_query.waf_logs_table](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/athena_named_query) | resource |
+| [aws_athena_workgroup.waf](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/athena_workgroup) | resource |
+| [aws_s3_bucket.logs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket) | resource |
+| [aws_s3_bucket_acl.logs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_acl) | resource |
+| [aws_s3_bucket_lifecycle_configuration.logs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_lifecycle_configuration) | resource |
+| [aws_s3_bucket_ownership_controls.logs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_ownership_controls) | resource |
+| [aws_wafv2_ip_set.whitelisted_ips_v4](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_ip_set) | resource |
+| [aws_wafv2_ip_set.whitelisted_ips_v6](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_ip_set) | resource |
+| [aws_wafv2_regex_pattern_set.string](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_regex_pattern_set) | resource |
+| [aws_wafv2_rule_group.aws_managed_rule_labels](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_rule_group) | resource |
+| [aws_wafv2_rule_group.country_count_rules](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_rule_group) | resource |
+| [aws_wafv2_rule_group.country_rate_rules](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_rule_group) | resource |
+| [aws_wafv2_web_acl.waf](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_web_acl) | resource |
+| [aws_wafv2_web_acl_logging_configuration.logs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_web_acl_logging_configuration) | resource |
+| [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
+| [aws_s3_bucket.log_bucket](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/s3_bucket) | data source |
+| [http_http.googlebot](https://registry.terraform.io/providers/hashicorp/http/latest/docs/data-sources/http) | data source |
+| [http_http.k6_load_generators](https://registry.terraform.io/providers/hashicorp/http/latest/docs/data-sources/http) | data source |
+| [http_http.parsely_ip_list](https://registry.terraform.io/providers/hashicorp/http/latest/docs/data-sources/http) | data source |
+
+## Inputs
+
+| Name | Description | Type | Default | Required |
+|------|-------------|------|---------|:--------:|
+| <a name="input_alternative_logs_bucket_name"></a> [alternative\_logs\_bucket\_name](#input\_alternative\_logs\_bucket\_name) | Override the default bucket destination for waf logs. If 'deploy\_logs' is set to false, this variable must be set. | `string` | `null` | no |
+| <a name="input_aws_managed_rule_groups"></a> [aws\_managed\_rule\_groups](#input\_aws\_managed\_rule\_groups) | AWS Managed Rule Groups counting and labeling requests. The labels applied by these groups can be specified in aws\_managed\_rule\_labels to rate limit requests. Available groups are described here https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-list.html. Not applicable for var.waf\_scope = REGIONAL | <pre>list(object({<br/>    name     = string<br/>    priority = number<br/>  }))</pre> | <pre>[<br/>  {<br/>    "name": "AWSManagedRulesAnonymousIpList",<br/>    "priority": 50<br/>  },<br/>  {<br/>    "name": "AWSManagedRulesAmazonIpReputationList",<br/>    "priority": 51<br/>  }<br/>]</pre> | no |
+| <a name="input_aws_managed_rule_labels"></a> [aws\_managed\_rule\_labels](#input\_aws\_managed\_rule\_labels) | AWS Managed rules labels to rate limit. The group using this label must be specified in aws\_managed\_rule\_groups in order to apply the label to incoming requests. Not applicable for var.waf\_scope = REGIONAL | <pre>list(object({<br/>    name                 = string<br/>    labels               = list(string)<br/>    enable_rate_limiting = optional(bool, true)      # if false all requests will be directly blocked<br/>    limit                = optional(number, 500)     # only used if enable_rate_limiting = true<br/>    action               = optional(string, "block") # possible actions: block, captcha, challenge<br/>    immunity_seconds     = optional(number, 300)     # only used if action is captcha (for challenge it's not currently allowed in tf, see waf.tf for more details). Immunity time in seconds after successfully passing a challenge<br/>    priority             = number<br/>  }))</pre> | <pre>[<br/>  {<br/>    "labels": [<br/>      "awswaf:managed:aws:anonymous-ip-list:AnonymousIPList",<br/>      "awswaf:managed:aws:amazon-ip-list:AWSManagedIPReputationList",<br/>      "awswaf:managed:aws:amazon-ip-list:AWSManagedReconnaissanceList",<br/>      "awswaf:managed:aws:amazon-ip-list:AWSManagedIPDDoSList"<br/>    ],<br/>    "name": "aws_managed_rule_low_limit",<br/>    "priority": 60<br/>  },<br/>  {<br/>    "labels": [<br/>      "awswaf:managed:aws:anonymous-ip-list:HostingProviderIPList"<br/>    ],<br/>    "limit": 750,<br/>    "name": "aws_managed_rule_high_limit",<br/>    "priority": 61<br/>  }<br/>]</pre> | no |
+| <a name="input_block_articles"></a> [block\_articles](#input\_block\_articles) | The list of articles to block from some country\_codes | <pre>list(object({<br/>    name          = string<br/>    priority      = number<br/>    articles      = set(string)<br/>    country_codes = set(string)<br/>  }))</pre> | `[]` | no |
+| <a name="input_block_regex_pattern"></a> [block\_regex\_pattern](#input\_block\_regex\_pattern) | Regex to block articles coming from a list of country\_codes | <pre>map(object({<br/>    description   = string<br/>    priority      = number<br/>    country_codes = set(string)<br/>    regex_string  = string<br/>  }))</pre> | `{}` | no |
+| <a name="input_block_uri_path_string"></a> [block\_uri\_path\_string](#input\_block\_uri\_path\_string) | Allow to block specific strings, defining the positional constraint of the string. | <pre>list(object({<br/>    name                  = string<br/>    priority              = optional(number, 1)<br/>    positional_constraint = optional(string, "EXACTLY")<br/>    search_string         = string<br/>  }))</pre> | `[]` | no |
+| <a name="input_count_requests_from_ch"></a> [count\_requests\_from\_ch](#input\_count\_requests\_from\_ch) | If true it deploys a rule that counts requests from Switzerland with priority 4 | `bool` | `false` | no |
+| <a name="input_country_count_rules"></a> [country\_count\_rules](#input\_country\_count\_rules) | Enable the deployment of rules that count the requests from specific countries. | <pre>list(object({<br/>    name          = string<br/>    limit         = number<br/>    priority      = number<br/>    country_codes = set(string)<br/>  }))</pre> | `[]` | no |
+| <a name="input_country_rates"></a> [country\_rates](#input\_country\_rates) | List of limits for groups of countries. | <pre>list(object({<br/>    name             = string<br/>    limit            = number<br/>    priority         = number<br/>    action           = optional(string, "block") # possible actions: block, captcha, challenge<br/>    immunity_seconds = optional(number, 300)     # only used if action is captcha (for challenge it's not currently allowed in tf, see waf.tf for more details). Immunity time in seconds after successfully passing a challenge<br/>    country_codes    = set(string)<br/>  }))</pre> | `[]` | no |
+| <a name="input_deploy_logs"></a> [deploy\_logs](#input\_deploy\_logs) | Enables the deployment of the s3 bucket to store the waf logs. Also enables the deployment of the athena pre-saved queries to easily access the logs generated by waf | `bool` | `true` | no |
+| <a name="input_enable_google_bots_whitelist"></a> [enable\_google\_bots\_whitelist](#input\_enable\_google\_bots\_whitelist) | Whitelist the Google bots IPs. (https://developers.google.com/search/apis/ipranges/googlebot.json) | `bool` | `true` | no |
+| <a name="input_enable_k6_whitelist"></a> [enable\_k6\_whitelist](#input\_enable\_k6\_whitelist) | Whitelist the K6 load generators IPs. (https://k6.io/docs/cloud/cloud-reference/cloud-ips/) | `bool` | `false` | no |
+| <a name="input_enable_logging"></a> [enable\_logging](#input\_enable\_logging) | Enables or disable the logging (independant of the buckets/athena) | `bool` | `false` | no |
+| <a name="input_enable_parsely_crawlers_whitelist"></a> [enable\_parsely\_crawlers\_whitelist](#input\_enable\_parsely\_crawlers\_whitelist) | Whitelist the Parse.ly crawler IPs. (https://www.parse.ly/help/integration/crawler) | `bool` | `false` | no |
+| <a name="input_everybody_else_limit"></a> [everybody\_else\_limit](#input\_everybody\_else\_limit) | The limit for all country\_codes which are not covered by country\_rates - not applied if it set to 0 | `number` | `0` | no |
+| <a name="input_google_bots_url"></a> [google\_bots\_url](#input\_google\_bots\_url) | The url where to get the Google bots IPs list. In case of problems the default url can be overridden. | `string` | `"https://developers.google.com/search/apis/ipranges/googlebot.json"` | no |
+| <a name="input_k6_ip_ranges_url"></a> [k6\_ip\_ranges\_url](#input\_k6\_ip\_ranges\_url) | The url where to get the K6 load generators IPs list. In case of problems the default url can be overridden. | `string` | `"https://ip-ranges.amazonaws.com/ip-ranges.json"` | no |
+| <a name="input_limit_search_requests_by_countries"></a> [limit\_search\_requests\_by\_countries](#input\_limit\_search\_requests\_by\_countries) | Limit requests on the path /search that comes from the specified list of country\_codes. Rule not deployed if list of countries is empty. | <pre>object({<br/>    limit         = optional(number, 100)<br/>    country_codes = set(string)<br/>  })</pre> | <pre>{<br/>  "country_codes": [],<br/>  "limit": 100<br/>}</pre> | no |
+| <a name="input_logo_path"></a> [logo\_path](#input\_logo\_path) | Company logo path (for 429 pages) | `string` | `""` | no |
+| <a name="input_logs_bucket_name_override"></a> [logs\_bucket\_name\_override](#input\_logs\_bucket\_name\_override) | Override the default bucket name for waf logs. Default name: `aws-waf-logs-<lower(var.waf_scope)>-<data.aws_caller_identity.current.account_id>` | `string` | `null` | no |
+| <a name="input_parsely_crawlers_url"></a> [parsely\_crawlers\_url](#input\_parsely\_crawlers\_url) | The url where to get the Parse.ly crawler IPs list. In case of problems the default url can be overridden. | `string` | `"https://www.parse.ly/static/data/crawler-ips.json"` | no |
+| <a name="input_waf_logs_retention"></a> [waf\_logs\_retention](#input\_waf\_logs\_retention) | Retention time (in days) of waf logs | `number` | `7` | no |
+| <a name="input_waf_name"></a> [waf\_name](#input\_waf\_name) | The name for WAF | `string` | `"cloudfront-waf"` | no |
+| <a name="input_waf_scope"></a> [waf\_scope](#input\_waf\_scope) | The scope of the deployed waf. Available options [CLOUDFRONT,REGIONAL] | `string` | `"CLOUDFRONT"` | no |
+| <a name="input_whitelisted_headers"></a> [whitelisted\_headers](#input\_whitelisted\_headers) | Map of header => value to be whitelisted. Set to empty map to disable the whitelisting | <pre>object({<br/>    headers           = map(string)<br/>    string_match_type = optional(string, "EXACTLY") # possible values: EXACTLY, STARTS_WITH, ENDS_WITH, CONTAINS, CONTAINS_WORD<br/>  })</pre> | `null` | no |
+| <a name="input_whitelisted_ips_v4"></a> [whitelisted\_ips\_v4](#input\_whitelisted\_ips\_v4) | List of IP ranges to be whitelisted. Set to empty list to disable the whitelisting | `list(string)` | `[]` | no |
+| <a name="input_whitelisted_ips_v6"></a> [whitelisted\_ips\_v6](#input\_whitelisted\_ips\_v6) | List of IP ranges to be whitelisted. Set to empty list to disable the whitelisting | `list(string)` | `[]` | no |
+
+## Outputs
+
+| Name | Description |
+|------|-------------|
+| <a name="output_google_bots"></a> [google\_bots](#output\_google\_bots) | List of Google bots whitelisted |
+| <a name="output_logs_bucket_arn"></a> [logs\_bucket\_arn](#output\_logs\_bucket\_arn) | Logs bucket arn |
+| <a name="output_logs_bucket_name"></a> [logs\_bucket\_name](#output\_logs\_bucket\_name) | Logs bucket name |
+| <a name="output_web_acl_arn"></a> [web\_acl\_arn](#output\_web\_acl\_arn) | Web ACL arn |
+| <a name="output_web_acl_id"></a> [web\_acl\_id](#output\_web\_acl\_id) | WAF arn used with the cloudfront |
+<!-- END_TF_DOCS -->
+
+## Authors
+
+Module is maintained by [Alfredo Gottardo](https://github.com/AlfGot), [David Beauvererd](https://github.com/Davidoutz), [Davide Cammarata](https://github.com/DCamma), [Francisco Ferreira](https://github.com/cferrera) [Demetrio Carrara](https://github.com/sgametrio), [Roland Bapst](https://github.com/rbapst-tamedia) and [Samuel Wibrow](https://github.com/swibrow)
+
+## License
+
+Apache 2 Licensed. See [LICENSE](LICENSE) for full details.
