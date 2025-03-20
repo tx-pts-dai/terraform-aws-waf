@@ -561,6 +561,7 @@ resource "aws_wafv2_web_acl" "waf" {
       }
     }
   }
+
   rule {
     name     = "${var.waf_name}_aws_managed_rule_labels"
     priority = 60
@@ -602,8 +603,9 @@ resource "aws_wafv2_web_acl" "waf" {
       }
     }
   }
+
   dynamic "rule" {
-    for_each = length(var.country_count_rules) > 0 ? [1] : [0]
+    for_each = length(var.country_count_rules) > 0 ? [1] : []
     content {
       name     = "${var.waf_name}_country_count_rules"
       priority = 90
@@ -612,7 +614,7 @@ resource "aws_wafv2_web_acl" "waf" {
       }
       statement {
         rule_group_reference_statement {
-          arn = try(aws_wafv2_rule_group.country_count_rules[0].arn, "")
+          arn = aws_wafv2_rule_group.country_count_rules[0].arn
         }
       }
       visibility_config {
