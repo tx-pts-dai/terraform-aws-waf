@@ -30,7 +30,7 @@ module "waf" {
   parsely_crawlers_url              = "https://www.parse.ly/static/data/crawler-ips.json"
   enable_k6_whitelist               = false
   k6_ip_ranges_url                  = "https://ip-ranges.amazonaws.com/ip-ranges.json"
-  whitelisted_ips_v4                = ["1.1.1.1/16", "255.255.255.255/32"]
+  whitelisted_ips_v4                = []
   whitelisted_ips_v6                = []
   whitelisted_headers = {
     headers = {
