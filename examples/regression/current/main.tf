@@ -110,7 +110,7 @@ module "waf_parallel" {
   }
   # Required variables: None
   # Non required variables"
-  waf_name                          = "waf-module-example-parallel"
+  waf_name                          = "waf-module-regression-example-parallel"
   waf_scope                         = "CLOUDFRONT"
   waf_logs_retention                = 7
   enable_google_bots_whitelist      = true
