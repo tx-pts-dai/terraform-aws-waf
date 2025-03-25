@@ -27,8 +27,7 @@ module "waf" {
   providers = {
     aws = aws.us
   }
-  # Required variables: None
-  # Non required variables"
+
   waf_name                          = "waf-module-regression-example"
   waf_scope                         = "CLOUDFRONT"
   waf_logs_retention                = 7
@@ -48,11 +47,11 @@ module "waf" {
   }
   aws_managed_rule_groups = [
     {
-      name     = "AWSManagedRulesAnonymousIpList" # Full list of labels from this group: https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-ip-rep.html
+      name     = "AWSManagedRulesAnonymousIpList"
       priority = 50
     },
     {
-      name     = "AWSManagedRulesAmazonIpReputationList" # Full list of labels from this group: https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-ip-rep.html
+      name     = "AWSManagedRulesAmazonIpReputationList"
       priority = 59
     }
   ]
@@ -122,8 +121,7 @@ module "waf_parallel" {
   providers = {
     aws = aws.us
   }
-  # Required variables: None
-  # Non required variables"
+
   waf_name                          = "waf-module-regression-example-parallel"
   waf_scope                         = "CLOUDFRONT"
   waf_logs_retention                = 7
@@ -143,11 +141,11 @@ module "waf_parallel" {
   }
   aws_managed_rule_groups = [
     {
-      name     = "AWSManagedRulesAnonymousIpList" # Full list of labels from this group: https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-ip-rep.html
+      name     = "AWSManagedRulesAnonymousIpList"
       priority = 50
     },
     {
-      name     = "AWSManagedRulesAmazonIpReputationList" # Full list of labels from this group: https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-ip-rep.html
+      name     = "AWSManagedRulesAmazonIpReputationList"
       priority = 59
     }
   ]
@@ -209,9 +207,8 @@ module "waf_parallel" {
   block_articles            = []
   block_regex_pattern       = {}
   logs_bucket_name_override = null
-  enable_logging            = true # To enable/disable the logs
+  enable_logging            = true
 
-  # WHEN YOU WANT TO DEPLOY A SECOND WAF IN PARALLEL, YOU NEED TO SET THIS VARIABLE TO FALSE AND PROVIDE WITH THE ALTERNATIVE BUCKET NAME
   deploy_logs                  = false
   alternative_logs_bucket_name = module.waf.logs_bucket_name
 }
