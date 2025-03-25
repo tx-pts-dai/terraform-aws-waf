@@ -203,6 +203,6 @@ module "waf_parallel" {
   enable_logging            = true # To enable/disable the logs
 
   # WHEN YOU WANT TO DEPLOY A SECOND WAF IN PARALLEL, YOU NEED TO SET THIS VARIABLE TO FALSE AND PROVIDE WITH THE ALTERNATIVE BUCKET NAME
-  deploy_logs                  = false
   alternative_logs_bucket_name = module.waf.logs_bucket_name
+  deploy_logs                  = false
 }
