@@ -104,11 +104,11 @@ module "waf" {
       priority      = 91
     }
   ]
-  everybody_else_limit = 0
   limit_search_requests_by_countries = {
     limit         = 100
     country_codes = ["CH"]
   }
+  everybody_else_limit      = 0
   block_uri_path_string     = []
   block_articles            = []
   block_regex_pattern       = {}
