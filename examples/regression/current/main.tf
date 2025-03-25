@@ -69,6 +69,20 @@ module "waf" {
       priority = 61
     }
   ]
+  country_count_rules = [
+    {
+      name          = "count-CH"
+      limit         = 4000
+      country_codes = ["CH"]
+      priority      = 90
+    },
+    {
+      name          = "count-DE"
+      limit         = 1000
+      country_codes = ["DE"]
+      priority      = 91
+    }
+  ]
   count_requests_from_ch = false
   country_rates = [
     {
