@@ -1,6 +1,13 @@
 terraform {
   required_version = ">= 1.4.0"
 
+  backend "s3" {
+    bucket               = "tf-state-911453050078"
+    key                  = "waf/examples/complete.tfstate"
+    workspace_key_prefix = "terraform-aws-waf"
+    dynamodb_table       = "terraform-lock"
+    region               = "eu-central-1"
+  }
   required_providers {
     aws = {
       source  = "hashicorp/aws"
