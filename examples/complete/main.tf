@@ -28,7 +28,7 @@ module "waf" {
   }
   # Required variables: None
   # Non required variables"
-  waf_name                          = "cloudfront-waf-examples"
+  waf_name                          = "waf-module-example"
   waf_scope                         = "CLOUDFRONT"
   waf_logs_retention                = 7
   enable_google_bots_whitelist      = true
