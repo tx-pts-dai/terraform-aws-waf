@@ -1,4 +1,4 @@
-name: Module Example - Complete
+name: Module Regression Test - Complete
 
 on:
   pull_request:
