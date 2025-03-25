@@ -22,7 +22,9 @@ provider "aws" {
 }
 
 module "waf" {
-  source = "../../../"
+  source  = "tx-pts-dai/waf/aws"
+  version = "~> 4.0.0"
+  # source = "../../../"
   providers = {
     aws = aws.us
   }
@@ -90,20 +92,20 @@ module "waf" {
       priority      = 72
     }
   ]
-  country_count_rules = [
-    {
-      name          = "count-CH"
-      limit         = 4000
-      country_codes = ["CH"]
-      priority      = 90
-    },
-    {
-      name          = "count-DE"
-      limit         = 1000
-      country_codes = ["DE"]
-      priority      = 91
-    }
-  ]
+  # country_count_rules = [
+  #   {
+  #     name          = "count-CH"
+  #     limit         = 4000
+  #     country_codes = ["CH"]
+  #     priority      = 90
+  #   },
+  #   {
+  #     name          = "count-DE"
+  #     limit         = 1000
+  #     country_codes = ["DE"]
+  #     priority      = 91
+  #   }
+  # ]
   limit_search_requests_by_countries = {
     limit         = 100
     country_codes = ["CH"]
