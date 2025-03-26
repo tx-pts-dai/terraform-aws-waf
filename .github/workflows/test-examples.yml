@@ -1,9 +1,10 @@
-name: Module Example - Complete
+name: Module Test - Complete
 
 on:
   pull_request:
     paths:
-      - examples/complete/*.tf
+      - examples/regression/current/*.tf
+      - examples/regression/next/*.tf
     types:
       - opened
       - synchronize
@@ -18,16 +19,24 @@ permissions:
   pull-requests: write
 
 jobs:
-  example_complete_deploy:
+  current_version_deploy:
     if: github.event_name == 'pull_request' && github.event.action != 'closed'
     uses: DND-IT/github-workflows/.github/workflows/tf-feature.yaml@v2
     with:
       environment: examples
-      tf_dir: examples/complete
+      tf_dir: examples/complete/current
 
-  example_complete_destroy:
+  next_version_deploy:
+    needs: current_version_deploy
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
+    uses: DND-IT/github-workflows/.github/workflows/tf-feature.yaml@v2
+    with:
+      environment: examples
+      tf_dir: examples/complete/next
+
+  feature_destroy:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
     uses: DND-IT/github-workflows/.github/workflows/tf-cleanup.yaml@v2
     with:
       environment: examples
-      tf_dir: examples/complete
+      tf_dir: examples/complete/current
