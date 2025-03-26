@@ -33,8 +33,8 @@ jobs:
 
       - name: Clear destination and copy source content
         run: |
-          rm -rf examples/complete/current
-          cp -r examples/complete/next/* examples/complete/current/
+          # rm -rf examples/complete/current
+          cp -r examples/complete/* examples/complete/current/
 
       - name: Commit and push changes
         run: |
