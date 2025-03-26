@@ -39,4 +39,4 @@ jobs:
     uses: DND-IT/github-workflows/.github/workflows/tf-cleanup.yaml@v2
     with:
       environment: examples
-      tf_dir: examples/complete/current
+      tf_dir: examples/complete/next
