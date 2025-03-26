@@ -45,11 +45,13 @@ jobs:
         run: |
           git add .
           git commit -m "Update current examples with latest content from next"
-          git push origin $BRANCH_NAME
+          git push -u origin $BRANCH_NAME
 
       - name: Create Pull Request
         id: cpr
         uses: peter-evans/create-pull-request@v7
+        with:
+          branch: ${{ env.BRANCH_NAME }}
 
       - name: Check outputs
         if: ${{ steps.cpr.outputs.pull-request-number }}
