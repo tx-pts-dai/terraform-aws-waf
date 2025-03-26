@@ -34,6 +34,7 @@ jobs:
       - name: Clear destination and copy source content
         run: |
           # rm -rf examples/complete/current
+          mkdir -p examples/next
           cp -r examples/complete/* examples/next/
 
       - name: Commit and push changes
