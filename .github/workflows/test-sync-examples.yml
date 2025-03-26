@@ -1,4 +1,10 @@
-name: Copy Files and Create PR
+name: Sync Examples
+
+
+#Basically the regression workflow will force us to fix the examples/complete
+# in "next" folder until the workflow is passing. I think one interesting next
+# step could be to automate the replacement of "current" folder with "next" so
+# the examples are automatically updated when ever they are updated.
 
 on:
   push:
