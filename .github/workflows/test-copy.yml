@@ -51,7 +51,7 @@ jobs:
         id: cpr
         uses: peter-evans/create-pull-request@v7
         with:
-          branch: ${{ env.BRANCH_NAME }}
+          branch: $BRANCH_NAME
 
       - name: Check outputs
         if: ${{ steps.cpr.outputs.pull-request-number }}
