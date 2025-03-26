@@ -12,6 +12,10 @@ on:
     branches-ignore:
       - renovate/*
 
+permissions:
+  contents: write
+  pull-requests: write
+
 jobs:
   copy-and-pr:
     runs-on: ubuntu-latest
