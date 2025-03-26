@@ -1,0 +1,50 @@
+name: Copy Files and Create PR
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/test-copy.yml
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - closed
+    branches-ignore:
+      - renovate/*
+
+jobs:
+  copy-and-pr:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Create new branch
+        run: |
+          BRANCH_NAME=copy-files-$(date +%s)
+          echo "BRANCH_NAME=$BRANCH_NAME" >> $GITHUB_ENV
+          git checkout -b $BRANCH_NAME
+
+      - name: Clear destination and copy source content
+        run: |
+          rm -rf examples/complete/current
+          cp -r examples/complete/next/* examples/complete/current/
+
+      - name: Commit and push changes
+        run: |
+          git add destination/
+          git commit -m "Update current examples with latest content from next"
+          git push origin $BRANCH_NAME
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v6
+        with:
+          title: "Sync examples"
+          body: "This PR clears the destination folder and syncs it with the latest content from source."
+          base: main
