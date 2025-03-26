@@ -39,7 +39,7 @@ jobs:
 
       - name: Commit and push changes
         run: |
-          git add destination/
+          git add .
           git commit -m "Update current examples with latest content from next"
           git push origin $BRANCH_NAME
 
