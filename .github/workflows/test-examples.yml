@@ -3,8 +3,8 @@ name: Module Test - Complete
 on:
   pull_request:
     paths:
-      - examples/regression/current/*.tf
-      - examples/regression/next/*.tf
+      - examples/complete/current/*.tf
+      - examples/complete/next/*.tf
     types:
       - opened
       - synchronize

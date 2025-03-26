@@ -209,6 +209,6 @@ module "waf_parallel" {
   logs_bucket_name_override = null
   enable_logging            = true
 
-  deploy_logs                  = false
   alternative_logs_bucket_name = module.waf.logs_bucket_name
+  deploy_logs                  = false
 }
