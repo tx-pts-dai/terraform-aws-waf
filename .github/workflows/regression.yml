@@ -34,17 +34,9 @@ jobs:
       environment: examples
       tf_dir: examples/regression/next
 
-  current_version_destroy:
+  feature_destroy:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
     uses: DND-IT/github-workflows/.github/workflows/tf-cleanup.yaml@v2
     with:
       environment: examples
       tf_dir: examples/regression/current
-
-  next_version_destroy:
-    needs: current_version_destroy
-    if: github.event_name == 'pull_request' && github.event.action == 'closed'
-    uses: DND-IT/github-workflows/.github/workflows/tf-cleanup.yaml@v2
-    with:
-      environment: examples
-      tf_dir: examples/regression/next
