@@ -220,7 +220,6 @@ No modules.
 | <a name="input_limit_search_requests_by_countries"></a> [limit\_search\_requests\_by\_countries](#input\_limit\_search\_requests\_by\_countries) | Limit requests on the path /search that comes from the specified list of country\_codes. Rule not deployed if list of countries is empty. | <pre>object({<br/>    limit         = optional(number, 100)<br/>    country_codes = set(string)<br/>  })</pre> | <pre>{<br/>  "country_codes": [],<br/>  "limit": 100<br/>}</pre> | no |
 | <a name="input_logo_path"></a> [logo\_path](#input\_logo\_path) | Company logo path (for 429 pages) | `string` | `""` | no |
 | <a name="input_logs_bucket_name_override"></a> [logs\_bucket\_name\_override](#input\_logs\_bucket\_name\_override) | Override the default bucket name for waf logs. Default name: `aws-waf-logs-<lower(var.waf_scope)>-<data.aws_caller_identity.current.account_id>` | `string` | `null` | no |
-| <a name="input_new_required_variable"></a> [new\_required\_variable](#input\_new\_required\_variable) | test of breaking change | `string` | n/a | yes |
 | <a name="input_parsely_crawlers_url"></a> [parsely\_crawlers\_url](#input\_parsely\_crawlers\_url) | The url where to get the Parse.ly crawler IPs list. In case of problems the default url can be overridden. | `string` | `"https://www.parse.ly/static/data/crawler-ips.json"` | no |
 | <a name="input_waf_logs_retention"></a> [waf\_logs\_retention](#input\_waf\_logs\_retention) | Retention time (in days) of waf logs | `number` | `7` | no |
 | <a name="input_waf_name"></a> [waf\_name](#input\_waf\_name) | The name for WAF | `string` | `"cloudfront-waf"` | no |
@@ -236,7 +235,6 @@ No modules.
 | <a name="output_google_bots"></a> [google\_bots](#output\_google\_bots) | List of Google bots whitelisted |
 | <a name="output_logs_bucket_arn"></a> [logs\_bucket\_arn](#output\_logs\_bucket\_arn) | Logs bucket arn |
 | <a name="output_logs_bucket_name"></a> [logs\_bucket\_name](#output\_logs\_bucket\_name) | Logs bucket name |
-| <a name="output_new_required_variable"></a> [new\_required\_variable](#output\_new\_required\_variable) | breaking change variable |
 | <a name="output_web_acl_arn"></a> [web\_acl\_arn](#output\_web\_acl\_arn) | Web ACL arn |
 | <a name="output_web_acl_id"></a> [web\_acl\_id](#output\_web\_acl\_id) | WAF arn used with the cloudfront |
 <!-- END_TF_DOCS -->

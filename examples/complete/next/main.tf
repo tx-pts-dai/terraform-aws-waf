@@ -111,7 +111,6 @@ module "waf" {
   block_articles            = []
   block_regex_pattern       = {}
   logs_bucket_name_override = null
-  new_required_variable     = "new_variable"
 }
 
 module "waf_parallel" {
@@ -208,5 +207,4 @@ module "waf_parallel" {
   enable_logging               = true
   deploy_logs                  = false
   alternative_logs_bucket_name = module.waf.logs_bucket_name
-  new_required_variable        = "new_variable"
 }

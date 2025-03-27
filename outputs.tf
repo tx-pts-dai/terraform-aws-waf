@@ -26,8 +26,3 @@ output "logs_bucket_arn" {
   value       = var.deploy_logs ? aws_s3_bucket.logs[0].arn : null
   description = "Logs bucket arn"
 }
-
-output "new_required_variable" {
-  value       = var.new_required_variable
-  description = "breaking change variable"
-}
