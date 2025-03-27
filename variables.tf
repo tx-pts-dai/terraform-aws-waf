@@ -127,7 +127,7 @@ variable "aws_managed_rule_labels" {
     labels               = list(string)
     enable_rate_limiting = optional(bool, true)      # if false all requests will be directly blocked
     limit                = optional(number, 500)     # only used if enable_rate_limiting = true
-    action               = optional(string, "block") # possible actions: block, captcha, challenge
+    action               = optional(string, "block") # possible actions: count, block, captcha, challenge
     immunity_seconds     = optional(number, 300)     # only used if action is captcha (for challenge it's not currently allowed in tf, see waf.tf for more details). Immunity time in seconds after successfully passing a challenge
     priority             = number
   }))
@@ -149,8 +149,8 @@ variable "aws_managed_rule_labels" {
     error_message = "var.aws_managed_rule_labels can have a max length of 4."
   }
   validation {
-    condition     = alltrue([for rule in var.aws_managed_rule_labels : (rule.priority >= 60 && rule.priority < 64) && contains(["block", "captcha", "challenge"], rule.action)])
-    error_message = "var.aws_managed_rule_labels.priority must be between 60 and 63. var.aws_managed_rule_labels.action must be either block, captcha or challenge"
+    condition     = alltrue([for rule in var.aws_managed_rule_labels : (rule.priority >= 60 && rule.priority < 64) && contains(["count", "block", "captcha", "challenge"], rule.action)])
+    error_message = "var.aws_managed_rule_labels.priority must be between 60 and 63. var.aws_managed_rule_labels.action must be either count, block, captcha or challenge"
   }
 }
 
