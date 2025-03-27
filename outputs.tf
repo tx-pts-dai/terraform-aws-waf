@@ -27,7 +27,7 @@ output "logs_bucket_arn" {
   description = "Logs bucket arn"
 }
 
-# output "new_required_variable" {
-#   value       = var.new_required_variable
-#   description = "breaking change variable"
-# }
+output "new_required_variable" {
+  value       = var.new_required_variable
+  description = "breaking change variable"
+}

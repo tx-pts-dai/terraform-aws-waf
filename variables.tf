@@ -337,7 +337,7 @@ variable "country_count_rules" {
   # ]
 }
 
-# variable "new_required_variable" {
-#   description = "test of breaking change"
-#   type        = string
-# }
+variable "new_required_variable" {
+  description = "test of breaking change"
+  type        = string
+}
