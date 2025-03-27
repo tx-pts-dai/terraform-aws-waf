@@ -79,7 +79,7 @@ resource "aws_wafv2_regex_pattern_set" "string" {
 }
 
 resource "aws_wafv2_web_acl" "waf" {
-  name  = "${var.waf_name}_${var.waf_name}"
+  name  = var.waf_name
   scope = var.waf_scope
   default_action {
     allow {}
@@ -716,6 +716,10 @@ resource "aws_wafv2_rule_group" "aws_managed_rule_labels" {
       name     = "${var.waf_name}_${rule.value.name}"
       priority = rule.value.priority
       action {
+        dynamic "count" {
+          for_each = rule.value.action == "count" ? [1] : []
+          content {}
+        }
         dynamic "block" {
           for_each = rule.value.action == "block" ? [1] : []
           content {
