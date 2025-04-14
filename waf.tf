@@ -57,6 +57,9 @@ resource "aws_wafv2_ip_set" "whitelisted_ips_v4" {
   scope              = var.waf_scope
   ip_address_version = "IPV4"
   addresses          = local.group_whitelist_ipv4
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_wafv2_ip_set" "whitelisted_ips_v6" {
@@ -65,6 +68,9 @@ resource "aws_wafv2_ip_set" "whitelisted_ips_v6" {
   scope              = var.waf_scope
   ip_address_version = "IPV6"
   addresses          = local.group_whitelist_ipv6
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 resource "aws_wafv2_regex_pattern_set" "string" {
@@ -75,6 +81,9 @@ resource "aws_wafv2_regex_pattern_set" "string" {
 
   regular_expression {
     regex_string = each.value.regex_string
+  }
+  lifecycle {
+    create_before_destroy = true
   }
 }
 
@@ -698,6 +707,9 @@ resource "aws_wafv2_rule_group" "country_rate_rules" {
     metric_name                = "${var.waf_name}_country_rate_rules"
     sampled_requests_enabled   = true
   }
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 resource "aws_wafv2_rule_group" "aws_managed_rule_labels" {
   name     = "${var.waf_name}_aws_managed_rule_labels"
@@ -873,5 +885,8 @@ resource "aws_wafv2_rule_group" "country_count_rules" {
     cloudwatch_metrics_enabled = true
     metric_name                = "${var.waf_name}_country_count_rules"
     sampled_requests_enabled   = true
+  }
+  lifecycle {
+    create_before_destroy = true
   }
 }
