@@ -1,6 +1,13 @@
 terraform {
   required_version = ">= 1.4.0"
 
+  backend "s3" {
+    bucket               = "tf-state-911453050078"
+    key                  = "waf/examples/regression.tfstate"
+    workspace_key_prefix = "terraform-aws-waf"
+    dynamodb_table       = "terraform-lock"
+    region               = "eu-central-1"
+  }
   required_providers {
     aws = {
       source  = "hashicorp/aws"
@@ -15,13 +22,13 @@ provider "aws" {
 }
 
 module "waf" {
-  source = "../../"
+  source  = "tx-pts-dai/waf/aws"
+  version = "~> 5.0"
   providers = {
     aws = aws.us
   }
-  # Required variables: None
-  # Non required variables"
-  waf_name                          = "cloudfront-waf"
+
+  waf_name                          = "waf-module-regression-example"
   waf_scope                         = "CLOUDFRONT"
   waf_logs_retention                = 7
   enable_google_bots_whitelist      = true
@@ -30,7 +37,7 @@ module "waf" {
   parsely_crawlers_url              = "https://www.parse.ly/static/data/crawler-ips.json"
   enable_k6_whitelist               = false
   k6_ip_ranges_url                  = "https://ip-ranges.amazonaws.com/ip-ranges.json"
-  whitelisted_ips_v4                = ["1.1.1.1/16", "255.255.255.255/32"]
+  whitelisted_ips_v4                = []
   whitelisted_ips_v6                = []
   whitelisted_headers = {
     headers = {
@@ -40,11 +47,11 @@ module "waf" {
   }
   aws_managed_rule_groups = [
     {
-      name     = "AWSManagedRulesAnonymousIpList" # Full list of labels from this group: https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-ip-rep.html
+      name     = "AWSManagedRulesAnonymousIpList"
       priority = 50
     },
     {
-      name     = "AWSManagedRulesAmazonIpReputationList" # Full list of labels from this group: https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-ip-rep.html
+      name     = "AWSManagedRulesAmazonIpReputationList"
       priority = 59
     }
   ]
@@ -59,6 +66,20 @@ module "waf" {
       labels   = ["awswaf:managed:aws:anonymous-ip-list:HostingProviderIPList"]
       limit    = 750
       priority = 61
+    }
+  ]
+  country_count_rules = [
+    {
+      name          = "count-CH"
+      limit         = 4000
+      country_codes = ["CH"]
+      priority      = 90
+    },
+    {
+      name          = "count-DE"
+      limit         = 1000
+      country_codes = ["DE"]
+      priority      = 91
     }
   ]
   count_requests_from_ch = false
@@ -83,25 +104,11 @@ module "waf" {
       priority      = 72
     }
   ]
-  country_count_rules = [
-    {
-      name          = "count-CH"
-      limit         = 4000
-      country_codes = ["CH"]
-      priority      = 90
-    },
-    {
-      name          = "count-DE"
-      limit         = 1000
-      country_codes = ["DE"]
-      priority      = 91
-    }
-  ]
-  everybody_else_limit = 0
   limit_search_requests_by_countries = {
     limit         = 100
     country_codes = ["CH"]
   }
+  everybody_else_limit      = 0
   block_uri_path_string     = []
   block_articles            = []
   block_regex_pattern       = {}
@@ -109,13 +116,13 @@ module "waf" {
 }
 
 module "waf_parallel" {
-  source = "../../"
+  source  = "tx-pts-dai/waf/aws"
+  version = "~> 5.0"
   providers = {
     aws = aws.us
   }
-  # Required variables: None
-  # Non required variables"
-  waf_name                          = "cloudfront-waf-parallel"
+
+  waf_name                          = "waf-module-regression-example-parallel"
   waf_scope                         = "CLOUDFRONT"
   waf_logs_retention                = 7
   enable_google_bots_whitelist      = true
@@ -124,7 +131,7 @@ module "waf_parallel" {
   parsely_crawlers_url              = "https://www.parse.ly/static/data/crawler-ips.json"
   enable_k6_whitelist               = false
   k6_ip_ranges_url                  = "https://ip-ranges.amazonaws.com/ip-ranges.json"
-  whitelisted_ips_v4                = ["1.1.1.1/16", "255.255.255.255/32"]
+  whitelisted_ips_v4                = []
   whitelisted_ips_v6                = []
   whitelisted_headers = {
     headers = {
@@ -134,11 +141,11 @@ module "waf_parallel" {
   }
   aws_managed_rule_groups = [
     {
-      name     = "AWSManagedRulesAnonymousIpList" # Full list of labels from this group: https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-ip-rep.html
+      name     = "AWSManagedRulesAnonymousIpList"
       priority = 50
     },
     {
-      name     = "AWSManagedRulesAmazonIpReputationList" # Full list of labels from this group: https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-ip-rep.html
+      name     = "AWSManagedRulesAmazonIpReputationList"
       priority = 59
     }
   ]
@@ -200,9 +207,8 @@ module "waf_parallel" {
   block_articles            = []
   block_regex_pattern       = {}
   logs_bucket_name_override = null
-  enable_logging            = true # To enable/disable the logs
+  enable_logging            = true
 
-  # WHEN YOU WANT TO DEPLOY A SECOND WAF IN PARALLEL, YOU NEED TO SET THIS VARIABLE TO FALSE AND PROVIDE WITH THE ALTERNATIVE BUCKET NAME
-  deploy_logs                  = false
   alternative_logs_bucket_name = module.waf.logs_bucket_name
+  deploy_logs                  = false
 }
