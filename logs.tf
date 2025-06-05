@@ -107,11 +107,16 @@ resource "aws_s3_bucket_lifecycle_configuration" "logs" {
   count  = var.deploy_logs ? 1 : 0
   bucket = aws_s3_bucket.logs[0].id
   rule {
-    id = "waf-logs"
+    id     = "waf-logs"
+    status = "Enabled"
+
     expiration {
       days = var.waf_logs_retention
     }
-    status = "Enabled"
+
+    filter {
+      prefix = ""
+    }
   }
 }
 
