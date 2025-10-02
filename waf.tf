@@ -582,18 +582,18 @@ resource "aws_wafv2_web_acl" "waf" {
       }
       dynamic "statement" {
         # or_statement needs 2 arguments so handle the case when only one article is in the rule
-        for_each = length(var.blocked_headers.headers) > 1 ? [1] : [] # if more than one element use or_statement
+        for_each = length(var.blocked_headers) > 1 ? [1] : [] # if more than one element use or_statement
         content {
           or_statement {
             dynamic "statement" {
-              for_each = var.blocked_headers.headers
+              for_each = var.blocked_headers
               content {
                 byte_match_statement {
-                  positional_constraint = var.statement.value.string_match_type
+                  positional_constraint = statement.value.string_match_type
                   search_string         = statement.value.value
                   field_to_match {
                     single_header {
-                      name = lower(statement.key)
+                      name = lower(statement.value.header)
                     }
                   }
                   text_transformation {
@@ -608,14 +608,14 @@ resource "aws_wafv2_web_acl" "waf" {
       }
       dynamic "statement" {
         # or_statement needs 2 arguments so handle the case when only one article is in the rule
-        for_each = length(var.blocked_headers.headers) == 1 ? var.blocked_headers.headers : {} # if more than one element use or_statement
+        for_each = length(var.blocked_headers) == 1 ? var.blocked_headers : [] # if more than one element use or_statement
         content {
           byte_match_statement {
-            positional_constraint = var.blocked_headers.string_match_type
-            search_string         = statement.value
+            positional_constraint = statement.value.string_match_type
+            search_string         = statement.value.value
             field_to_match {
               single_header {
-                name = lower(statement.key)
+                name = lower(statement.value.header)
               }
             }
             text_transformation {

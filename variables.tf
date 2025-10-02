@@ -100,12 +100,11 @@ variable "whitelisted_headers" {
 
 variable "blocked_headers" {
   description = "Map of header => value to be blocked. Set to empty map to disable the blocking on headers"
-  type = object({
-    headers = map(object({
-      value             = string
-      string_match_type = optional(string, "EXACTLY") # possible values: EXACTLY, STARTS_WITH, ENDS_WITH, CONTAINS, CONTAINS_WORD
-    }))
-  })
+  type = list(object({
+    header            = string
+    value             = string
+    string_match_type = optional(string, "EXACTLY") # possible values: EXACTLY, STARTS_WITH, ENDS_WITH, CONTAINS, CONTAINS_WORD
+  }))
   default = null
 }
 
