@@ -3,7 +3,7 @@
 # 1-9: block_uri_path_string
 # 10-19: block_articles
 # 20-29: block_regex_pattern
-# 30: block on specific header
+# 30: block_based_on_headers
 # 31-39 free
 # 40: whitelisted_ips_v4
 # 41: whitelisted_ips_v6

@@ -14,7 +14,8 @@ It's designed to propose the following rules:
 |1-9 | block_uri_path_string | |
 |10-19 | block_articles | |
 |20-29 | block_regex_pattern | |
-|30-39 free | Free priority range for additional rules | |
+|30 | block_based_on_headers | |
+|31-39 free | Free priority range for additional rules | |
 |40 | whitelisted_ips_v4 | Automatically download and whitelist bots IPV4s (see variables) and whitelist any list of IPV4 ranges|
 |41 | whitelisted_ips_v6 | Automatically download and whitelist bots IPV6s (see variables) and whitelist any list of IPV6 ranges|
 |42 | Rate_limit_everything_apart_from_CH | This rule is meant to be a failsafe switch in case of attack. Change "count" to "block" in the console if you are under attack and want to rate limit to a low number of requests every country except Switzerland |
