@@ -589,8 +589,8 @@ resource "aws_wafv2_web_acl" "waf" {
               for_each = var.blocked_headers.headers
               content {
                 byte_match_statement {
-                  positional_constraint = var.blocked_headers.string_match_type
-                  search_string         = statement.value
+                  positional_constraint = var.statement.value.string_match_type
+                  search_string         = statement.value.value
                   field_to_match {
                     single_header {
                       name = lower(statement.key)
