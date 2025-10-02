@@ -3,7 +3,8 @@
 # 1-9: block_uri_path_string
 # 10-19: block_articles
 # 20-29: block_regex_pattern
-# 30-39 free
+# 30: block on specific header
+# 31-39 free
 # 40: whitelisted_ips_v4
 # 41: whitelisted_ips_v6
 # 42: Rate_limit_everything_apart_from_CH
@@ -566,6 +567,67 @@ resource "aws_wafv2_web_acl" "waf" {
       visibility_config {
         cloudwatch_metrics_enabled = true
         metric_name                = rule.key
+        sampled_requests_enabled   = true
+      }
+    }
+  }
+
+  dynamic "rule" {
+    for_each = var.blocked_headers != null ? [1] : []
+    content {
+      name     = "${var.waf_name}_block_based_on_headers"
+      priority = 30
+      action {
+        block {}
+      }
+      dynamic "statement" {
+        # or_statement needs 2 arguments so handle the case when only one article is in the rule
+        for_each = length(var.blocked_headers.headers) > 1 ? [1] : [] # if more than one element use or_statement
+        content {
+          or_statement {
+            dynamic "statement" {
+              for_each = var.blocked_headers.headers
+              content {
+                byte_match_statement {
+                  positional_constraint = var.blocked_headers.string_match_type
+                  search_string         = statement.value
+                  field_to_match {
+                    single_header {
+                      name = lower(statement.key)
+                    }
+                  }
+                  text_transformation {
+                    priority = 0
+                    type     = "NONE"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      dynamic "statement" {
+        # or_statement needs 2 arguments so handle the case when only one article is in the rule
+        for_each = length(var.blocked_headers.headers) == 1 ? var.blocked_headers.headers : {} # if more than one element use or_statement
+        content {
+          byte_match_statement {
+            positional_constraint = var.blocked_headers.string_match_type
+            search_string         = statement.value
+            field_to_match {
+              single_header {
+                name = lower(statement.key)
+              }
+            }
+            text_transformation {
+              priority = 0
+              type     = "NONE"
+            }
+          }
+        }
+      }
+      visibility_config {
+        cloudwatch_metrics_enabled = true
+        metric_name                = "${var.waf_name}_block_based_on_headers"
         sampled_requests_enabled   = true
       }
     }
