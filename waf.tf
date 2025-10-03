@@ -1,9 +1,9 @@
 ## Priorities:
-# 0: limit_search_requests_by_countries
-# 1-9: block_uri_path_string
-# 10-19: block_articles
-# 20-29: block_regex_pattern
-# 30: block_based_on_headers
+# 0: block_based_on_headers
+# 1: limit_search_requests_by_countries
+# 2-10: block_uri_path_string
+# 11-20: block_articles
+# 21-30: block_regex_pattern
 # 31-39 free
 # 40: whitelisted_ips_v4
 # 41: whitelisted_ips_v6
@@ -361,7 +361,7 @@ resource "aws_wafv2_web_acl" "waf" {
     for_each = length(var.limit_search_requests_by_countries.country_codes) > 0 ? [1] : []
     content {
       name     = "${var.waf_name}_limit_search_requests_by_countries"
-      priority = 0
+      priority = 1
       action {
         block {
           custom_response {
@@ -576,7 +576,7 @@ resource "aws_wafv2_web_acl" "waf" {
     for_each = var.blocked_headers != null ? [1] : []
     content {
       name     = "${var.waf_name}_block_based_on_headers"
-      priority = 30
+      priority = 0
       action {
         block {}
       }

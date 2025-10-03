@@ -235,7 +235,7 @@ variable "block_uri_path_string" {
     search_string         = string
   }))
   validation {
-    condition     = alltrue([for uri in var.block_uri_path_string : uri.priority >= 1 && uri.priority < 9 && contains(["EXACTLY", "STARTS_WITH", "ENDS_WITH", "CONTAINS", "CONTAINS_WORD"], uri.positional_constraint)])
+    condition     = alltrue([for uri in var.block_uri_path_string : uri.priority >= 2 && uri.priority < 11 && contains(["EXACTLY", "STARTS_WITH", "ENDS_WITH", "CONTAINS", "CONTAINS_WORD"], uri.positional_constraint)])
     error_message = "var.block_uri_path_string.priority must be between 1 and 9"
   }
 }
@@ -268,7 +268,7 @@ variable "block_articles" {
   #   ...
   # ]
   validation {
-    condition     = alltrue([for uri in var.block_articles : uri.priority >= 10 && uri.priority < 19])
+    condition     = alltrue([for uri in var.block_articles : uri.priority >= 11 && uri.priority < 21])
     error_message = "var.block_articles.priority must be between 10 and 19"
   }
 }
@@ -292,7 +292,7 @@ variable "block_regex_pattern" {
   #   }
   # }
   validation {
-    condition     = alltrue([for uri in var.block_regex_pattern : uri.priority >= 20 && uri.priority < 30])
+    condition     = alltrue([for uri in var.block_regex_pattern : uri.priority >= 21 && uri.priority < 31])
     error_message = "var.block_regex_pattern.priority must be between 20 and 29"
   }
 }

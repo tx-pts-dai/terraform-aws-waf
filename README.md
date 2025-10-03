@@ -10,11 +10,11 @@ It's designed to propose the following rules:
 
 |Priority|Rule Name|Notes|
 |----------|----------|------|
-|0 | limit_search_requests_by_countries | |
-|1-9 | block_uri_path_string | |
-|10-19 | block_articles | |
-|20-29 | block_regex_pattern | |
-|30 | block_based_on_headers | |
+|0 | block_based_on_headers | |
+|1 | limit_search_requests_by_countries | |
+|2-10 | block_uri_path_string | |
+|11-20 | block_articles | |
+|21-30 | block_regex_pattern | |
 |31-39 free | Free priority range for additional rules | |
 |40 | whitelisted_ips_v4 | Automatically download and whitelist bots IPV4s (see variables) and whitelist any list of IPV4 ranges|
 |41 | whitelisted_ips_v6 | Automatically download and whitelist bots IPV6s (see variables) and whitelist any list of IPV6 ranges|
