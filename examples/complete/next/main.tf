@@ -37,6 +37,13 @@ module "waf" {
   k6_ip_ranges_url                  = "https://ip-ranges.amazonaws.com/ip-ranges.json"
   whitelisted_ips_v4                = []
   whitelisted_ips_v6                = []
+  blocked_headers = [
+    {
+      header            = "host"
+      value             = ".cloudfront.net"
+      string_match_type = "ENDS_WITH"
+    },
+  ]
   whitelisted_headers = {
     headers = {
       "MyCustomHeader"  = "Lighthouse"

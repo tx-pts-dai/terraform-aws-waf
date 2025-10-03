@@ -10,11 +10,12 @@ It's designed to propose the following rules:
 
 |Priority|Rule Name|Notes|
 |----------|----------|------|
-|0 | limit_search_requests_by_countries | |
-|1-9 | block_uri_path_string | |
-|10-19 | block_articles | |
-|20-29 | block_regex_pattern | |
-|30-39 free | Free priority range for additional rules | |
+|0 | block_based_on_headers | |
+|1 | limit_search_requests_by_countries | |
+|2-10 | block_uri_path_string | |
+|11-20 | block_articles | |
+|21-30 | block_regex_pattern | |
+|31-39 free | Free priority range for additional rules | |
 |40 | whitelisted_ips_v4 | Automatically download and whitelist bots IPV4s (see variables) and whitelist any list of IPV4 ranges|
 |41 | whitelisted_ips_v6 | Automatically download and whitelist bots IPV6s (see variables) and whitelist any list of IPV6 ranges|
 |42 | Rate_limit_everything_apart_from_CH | This rule is meant to be a failsafe switch in case of attack. Change "count" to "block" in the console if you are under attack and want to rate limit to a low number of requests every country except Switzerland |
@@ -206,6 +207,7 @@ No modules.
 | <a name="input_block_articles"></a> [block\_articles](#input\_block\_articles) | The list of articles to block from some country\_codes | <pre>list(object({<br/>    name          = string<br/>    priority      = number<br/>    articles      = set(string)<br/>    country_codes = set(string)<br/>  }))</pre> | `[]` | no |
 | <a name="input_block_regex_pattern"></a> [block\_regex\_pattern](#input\_block\_regex\_pattern) | Regex to block articles coming from a list of country\_codes | <pre>map(object({<br/>    description   = string<br/>    priority      = number<br/>    country_codes = set(string)<br/>    regex_string  = string<br/>  }))</pre> | `{}` | no |
 | <a name="input_block_uri_path_string"></a> [block\_uri\_path\_string](#input\_block\_uri\_path\_string) | Allow to block specific strings, defining the positional constraint of the string. | <pre>list(object({<br/>    name                  = string<br/>    priority              = optional(number, 1)<br/>    positional_constraint = optional(string, "EXACTLY")<br/>    search_string         = string<br/>  }))</pre> | `[]` | no |
+| <a name="input_blocked_headers"></a> [blocked\_headers](#input\_blocked\_headers) | Map of header => value to be blocked. Set to empty map to disable the blocking on headers | <pre>list(object({<br/>    header            = string<br/>    value             = string<br/>    string_match_type = optional(string, "EXACTLY") # possible values: EXACTLY, STARTS_WITH, ENDS_WITH, CONTAINS, CONTAINS_WORD<br/>  }))</pre> | `null` | no |
 | <a name="input_count_requests_from_ch"></a> [count\_requests\_from\_ch](#input\_count\_requests\_from\_ch) | If true it deploys a rule that counts requests from Switzerland with priority 4 | `bool` | `false` | no |
 | <a name="input_country_count_rules"></a> [country\_count\_rules](#input\_country\_count\_rules) | Enable the deployment of rules that count the requests from specific countries. | <pre>list(object({<br/>    name          = string<br/>    limit         = number<br/>    priority      = number<br/>    country_codes = set(string)<br/>  }))</pre> | `[]` | no |
 | <a name="input_country_rates"></a> [country\_rates](#input\_country\_rates) | List of limits for groups of countries. | <pre>list(object({<br/>    name             = string<br/>    limit            = number<br/>    priority         = number<br/>    action           = optional(string, "block") # possible actions: block, captcha, challenge<br/>    immunity_seconds = optional(number, 300)     # only used if action is captcha (for challenge it's not currently allowed in tf, see waf.tf for more details). Immunity time in seconds after successfully passing a challenge<br/>    country_codes    = set(string)<br/>  }))</pre> | `[]` | no |
