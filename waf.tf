@@ -1,9 +1,10 @@
 ## Priorities:
-# 0: limit_search_requests_by_countries
-# 1-9: block_uri_path_string
-# 10-19: block_articles
-# 20-29: block_regex_pattern
-# 30-39 free
+# 0: block_based_on_headers
+# 1: limit_search_requests_by_countries
+# 2-10: block_uri_path_string
+# 11-20: block_articles
+# 21-30: block_regex_pattern
+# 31-39 free
 # 40: whitelisted_ips_v4
 # 41: whitelisted_ips_v6
 # 42: Rate_limit_everything_apart_from_CH
@@ -360,7 +361,7 @@ resource "aws_wafv2_web_acl" "waf" {
     for_each = length(var.limit_search_requests_by_countries.country_codes) > 0 ? [1] : []
     content {
       name     = "${var.waf_name}_limit_search_requests_by_countries"
-      priority = 0
+      priority = 1
       action {
         block {
           custom_response {
@@ -566,6 +567,67 @@ resource "aws_wafv2_web_acl" "waf" {
       visibility_config {
         cloudwatch_metrics_enabled = true
         metric_name                = rule.key
+        sampled_requests_enabled   = true
+      }
+    }
+  }
+
+  dynamic "rule" {
+    for_each = var.blocked_headers != null ? [1] : []
+    content {
+      name     = "${var.waf_name}_block_based_on_headers"
+      priority = 0
+      action {
+        block {}
+      }
+      dynamic "statement" {
+        # or_statement needs 2 arguments so handle the case when only one article is in the rule
+        for_each = length(var.blocked_headers) > 1 ? [1] : [] # if more than one element use or_statement
+        content {
+          or_statement {
+            dynamic "statement" {
+              for_each = var.blocked_headers
+              content {
+                byte_match_statement {
+                  positional_constraint = statement.value.string_match_type
+                  search_string         = statement.value.value
+                  field_to_match {
+                    single_header {
+                      name = lower(statement.value.header)
+                    }
+                  }
+                  text_transformation {
+                    priority = 0
+                    type     = "NONE"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      dynamic "statement" {
+        # or_statement needs 2 arguments so handle the case when only one article is in the rule
+        for_each = length(var.blocked_headers) == 1 ? var.blocked_headers : [] # if more than one element use or_statement
+        content {
+          byte_match_statement {
+            positional_constraint = statement.value.string_match_type
+            search_string         = statement.value.value
+            field_to_match {
+              single_header {
+                name = lower(statement.value.header)
+              }
+            }
+            text_transformation {
+              priority = 0
+              type     = "NONE"
+            }
+          }
+        }
+      }
+      visibility_config {
+        cloudwatch_metrics_enabled = true
+        metric_name                = "${var.waf_name}_block_based_on_headers"
         sampled_requests_enabled   = true
       }
     }
