@@ -106,13 +106,48 @@ resource "aws_wafv2_web_acl" "waf" {
     content_type = "TEXT_HTML"
   }
 
+  rule {
+    name     = "${var.waf_name}_block_if_x_waf_whitelisted_present"
+    priority = 39
+    action {
+      block {}
+    }
+    statement {
+      size_constraint_statement {
+        field_to_match {
+          single_header {
+            name = "x-waf-whitelisted"
+          }
+        }
+        comparison_operator = "GT"
+        size                 = 0
+        text_transformation {
+          priority = 0
+          type     = "NONE"
+        }
+      }
+    }
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${var.waf_name}_block_if_x_waf_whitelisted_present"
+      sampled_requests_enabled   = true
+    }
+  }
+
   dynamic "rule" {
     for_each = length(local.group_whitelist_ipv4) == 0 ? [] : [1]
     content {
       name     = "${var.waf_name}_whitelisted_ips_v4"
       priority = 40
       action {
-        allow {}
+        allow {
+          custom_request_handling {
+            insert_header {
+              name  = "x-waf-whitelisted"
+              value = "true"
+            }
+          }
+        }
       }
       statement {
         ip_set_reference_statement {
@@ -141,7 +176,14 @@ resource "aws_wafv2_web_acl" "waf" {
       name     = "${var.waf_name}_whitelisted_ips_v6"
       priority = 41
       action {
-        allow {}
+        allow {
+          custom_request_handling {
+            insert_header {
+              name  = "x-waf-whitelisted"
+              value = "true"
+            }
+          }
+        }
       }
       statement {
         ip_set_reference_statement {

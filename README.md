@@ -15,7 +15,8 @@ It's designed to propose the following rules:
 |2-10 | block_uri_path_string | |
 |11-20 | block_articles | |
 |21-30 | block_regex_pattern | |
-|31-39 free | Free priority range for additional rules | |
+|31-38 | free | Free priority range for additional rules |
+|39 | block_if_x_waf_whitelisted_present | Blocks requests where the 'x-waf-whitelisted' header is present to prevent client spoofing |
 |40 | whitelisted_ips_v4 | Automatically download and whitelist bots IPV4s (see variables) and whitelist any list of IPV4 ranges|
 |41 | whitelisted_ips_v6 | Automatically download and whitelist bots IPV6s (see variables) and whitelist any list of IPV6 ranges|
 |42 | Rate_limit_everything_apart_from_CH | This rule is meant to be a failsafe switch in case of attack. Change "count" to "block" in the console if you are under attack and want to rate limit to a low number of requests every country except Switzerland |
@@ -146,6 +147,12 @@ resource "aws_s3_bucket_lifecycle_configuration" "logs" {
   }
 }
 ```
+
+## Custom Headers for Whitelisted Requests
+
+When requests from whitelisted IP addresses (IPv4 or IPv6) are allowed by the WAF, a custom header `x-waf-whitelisted` with the value `true` is automatically added to the request before it is forwarded to the origin. This applies to all IPs included in the whitelisted IP sets, such as user-defined IPs, Google bots (if enabled), Parse.ly crawlers (if enabled), and K6 load generators (if enabled).
+
+This header can be used by downstream applications or services to identify and handle requests from trusted sources differently - for example giving premium access by default.
 
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
