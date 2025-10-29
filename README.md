@@ -11,13 +11,12 @@ It's designed to propose the following rules:
 |Priority|Rule Name|Notes|
 |----------|----------|------|
 |0 | block_based_on_headers | |
-|1 | limit_search_requests_by_countries | |
-|2-10 | block_uri_path_string | |
+|1 | whitelist_group | Whitelisting bots by downloading IP lists on apply based on var.google_bot_whitelisting, var.parsely_bot_whitelisting, `var.k6_bot_whitelisting` configs. Additionally whitelisting on custom IP lists defined in `var.ip_whitelisting`|
+|2 | limit_search_requests_by_countries |Rate limit the requests done to path `/search` by country|
+|3-10 | block_uri_path_string | |
 |11-20 | block_articles | |
 |21-30 | block_regex_pattern | |
-|31-39 free | Free priority range for additional rules | |
-|40 | whitelisted_ips_v4 | Automatically download and whitelist bots IPV4s (see variables) and whitelist any list of IPV4 ranges|
-|41 | whitelisted_ips_v6 | Automatically download and whitelist bots IPV6s (see variables) and whitelist any list of IPV6 ranges|
+|31-41 free | Free priority range for additional rules | |
 |42 | Rate_limit_everything_apart_from_CH | This rule is meant to be a failsafe switch in case of attack. Change "count" to "block" in the console if you are under attack and want to rate limit to a low number of requests every country except Switzerland |
 |43 | count_requests_from_ch | |
 |44 | whitelist_based_on_headers | |
@@ -110,11 +109,13 @@ A rule statement that uses a forwarded IP header for the IP address won’t use 
 
 If the google bot jsonecode throws errors it can be disabled by:
 
-* setting `enable_google_bots_whitelist = false`
+* setting `var.google_bot_whitelisting.whitelist = false`
 
 If the `data.http.googlebot` structure throws errors the url can be overridden by:
 
-* setting the variable `google_bots_url` to a valid URL
+* setting the variable `var.google_bot_whitelisting.url` to a valid URL
+
+Similar settings exist for `var.parsely_bot_whitelisting` and `var.k6_bot_whitelisting` as well.
 
 ## How to setup parallel WAFs ?
 If you need to deploy more than one WAF in the same account, you can choose between letting each waf managing their own logs, or you can reuse an existing bucket and pass it as a parameter.
@@ -183,12 +184,12 @@ No modules.
 | [aws_s3_bucket_acl.logs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_acl) | resource |
 | [aws_s3_bucket_lifecycle_configuration.logs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_lifecycle_configuration) | resource |
 | [aws_s3_bucket_ownership_controls.logs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_ownership_controls) | resource |
-| [aws_wafv2_ip_set.whitelisted_ips_v4](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_ip_set) | resource |
-| [aws_wafv2_ip_set.whitelisted_ips_v6](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_ip_set) | resource |
+| [aws_wafv2_ip_set.whitelist](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_ip_set) | resource |
 | [aws_wafv2_regex_pattern_set.string](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_regex_pattern_set) | resource |
 | [aws_wafv2_rule_group.aws_managed_rule_labels](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_rule_group) | resource |
 | [aws_wafv2_rule_group.country_count_rules](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_rule_group) | resource |
 | [aws_wafv2_rule_group.country_rate_rules](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_rule_group) | resource |
+| [aws_wafv2_rule_group.whitelist](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_rule_group) | resource |
 | [aws_wafv2_web_acl.waf](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_web_acl) | resource |
 | [aws_wafv2_web_acl_logging_configuration.logs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_web_acl_logging_configuration) | resource |
 | [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
@@ -212,23 +213,19 @@ No modules.
 | <a name="input_country_count_rules"></a> [country\_count\_rules](#input\_country\_count\_rules) | Enable the deployment of rules that count the requests from specific countries. | <pre>list(object({<br/>    name          = string<br/>    limit         = number<br/>    priority      = number<br/>    country_codes = set(string)<br/>  }))</pre> | `[]` | no |
 | <a name="input_country_rates"></a> [country\_rates](#input\_country\_rates) | List of limits for groups of countries. | <pre>list(object({<br/>    name             = string<br/>    limit            = number<br/>    priority         = number<br/>    action           = optional(string, "block") # possible actions: block, captcha, challenge<br/>    immunity_seconds = optional(number, 300)     # only used if action is captcha (for challenge it's not currently allowed in tf, see waf.tf for more details). Immunity time in seconds after successfully passing a challenge<br/>    country_codes    = set(string)<br/>  }))</pre> | `[]` | no |
 | <a name="input_deploy_logs"></a> [deploy\_logs](#input\_deploy\_logs) | Enables the deployment of the s3 bucket to store the waf logs. Also enables the deployment of the athena pre-saved queries to easily access the logs generated by waf | `bool` | `true` | no |
-| <a name="input_enable_google_bots_whitelist"></a> [enable\_google\_bots\_whitelist](#input\_enable\_google\_bots\_whitelist) | Whitelist the Google bots IPs. (https://developers.google.com/search/apis/ipranges/googlebot.json) | `bool` | `true` | no |
-| <a name="input_enable_k6_whitelist"></a> [enable\_k6\_whitelist](#input\_enable\_k6\_whitelist) | Whitelist the K6 load generators IPs. (https://k6.io/docs/cloud/cloud-reference/cloud-ips/) | `bool` | `false` | no |
 | <a name="input_enable_logging"></a> [enable\_logging](#input\_enable\_logging) | Enables or disable the logging (independant of the buckets/athena) | `bool` | `false` | no |
-| <a name="input_enable_parsely_crawlers_whitelist"></a> [enable\_parsely\_crawlers\_whitelist](#input\_enable\_parsely\_crawlers\_whitelist) | Whitelist the Parse.ly crawler IPs. (https://www.parse.ly/help/integration/crawler) | `bool` | `false` | no |
 | <a name="input_everybody_else_limit"></a> [everybody\_else\_limit](#input\_everybody\_else\_limit) | The limit for all country\_codes which are not covered by country\_rates - not applied if it set to 0 | `number` | `0` | no |
-| <a name="input_google_bots_url"></a> [google\_bots\_url](#input\_google\_bots\_url) | The url where to get the Google bots IPs list. In case of problems the default url can be overridden. | `string` | `"https://developers.google.com/search/apis/ipranges/googlebot.json"` | no |
-| <a name="input_k6_ip_ranges_url"></a> [k6\_ip\_ranges\_url](#input\_k6\_ip\_ranges\_url) | The url where to get the K6 load generators IPs list. In case of problems the default url can be overridden. | `string` | `"https://ip-ranges.amazonaws.com/ip-ranges.json"` | no |
+| <a name="input_google_bot_whitelisting"></a> [google\_bot\_whitelisting](#input\_google\_bot\_whitelisting) | Configuration for whitelisting Googlebot IPs. Set 'whitelist' to false to disable the whitelisting. Doc https://developers.google.com/search/apis/ipranges/googlebot.json.The IPs are automatically parsed from the given url. Use 'insert\_header' to add custom headers to these requests (the headers will be prefixed automatically with `x-amzn-waf-`). | <pre>object({<br/>    whitelist     = bool<br/>    url           = optional(string, "https://developers.google.com/search/apis/ipranges/googlebot.json")<br/>    insert_header = optional(map(string), null)<br/>  })</pre> | <pre>{<br/>  "whitelist": false<br/>}</pre> | no |
+| <a name="input_ip_whitelisting"></a> [ip\_whitelisting](#input\_ip\_whitelisting) | Map of configurations for whitelisting custom lists of IPs. Use 'insert\_header' to add custom headers to these requests (the headers will be prefixed automatically with `x-amzn-waf-`). | <pre>map(object({<br/>    ips                = list(string)<br/>    ip_address_version = string # possible values: IPV4, IPV6<br/>    priority           = number # > 10<br/>    insert_header      = optional(map(string), null)<br/>  }))</pre> | `{}` | no |
+| <a name="input_k6_bot_whitelisting"></a> [k6\_bot\_whitelisting](#input\_k6\_bot\_whitelisting) | Configuration for whitelisting the K6 load generators IPs. Set 'whitelist' to false to disable the whitelisting. Doc https://k6.io/docs/cloud/cloud-reference/cloud-ips/. The IPs are automatically parsed from the given url. Use 'insert\_header' to add custom headers to these requests (the headers will be prefixed automatically with `x-amzn-waf-`). | <pre>object({<br/>    whitelist     = bool<br/>    url           = optional(string, "https://ip-ranges.amazonaws.com/ip-ranges.json")<br/>    insert_header = optional(map(string), null)<br/>  })</pre> | <pre>{<br/>  "whitelist": false<br/>}</pre> | no |
 | <a name="input_limit_search_requests_by_countries"></a> [limit\_search\_requests\_by\_countries](#input\_limit\_search\_requests\_by\_countries) | Limit requests on the path /search that comes from the specified list of country\_codes. Rule not deployed if list of countries is empty. | <pre>object({<br/>    limit         = optional(number, 100)<br/>    country_codes = set(string)<br/>  })</pre> | <pre>{<br/>  "country_codes": [],<br/>  "limit": 100<br/>}</pre> | no |
 | <a name="input_logo_path"></a> [logo\_path](#input\_logo\_path) | Company logo path (for 429 pages) | `string` | `""` | no |
 | <a name="input_logs_bucket_name_override"></a> [logs\_bucket\_name\_override](#input\_logs\_bucket\_name\_override) | Override the default bucket name for waf logs. Default name: `aws-waf-logs-<lower(var.waf_scope)>-<data.aws_caller_identity.current.account_id>` | `string` | `null` | no |
-| <a name="input_parsely_crawlers_url"></a> [parsely\_crawlers\_url](#input\_parsely\_crawlers\_url) | The url where to get the Parse.ly crawler IPs list. In case of problems the default url can be overridden. | `string` | `"https://www.parse.ly/static/data/crawler-ips.json"` | no |
+| <a name="input_parsely_bot_whitelisting"></a> [parsely\_bot\_whitelisting](#input\_parsely\_bot\_whitelisting) | Configuration for whitelisting Parse.ly crawler IPs. Set 'whitelist' to false to disable the whitelisting. The IPs are automatically parsed from the given url. Use 'insert\_header' to add custom headers to these requests (the headers will be prefixed automatically with `x-amzn-waf-`). | <pre>object({<br/>    whitelist     = bool<br/>    url           = optional(string, "https://www.parse.ly/static/data/crawler-ips.json")<br/>    insert_header = optional(map(string), null)<br/>  })</pre> | <pre>{<br/>  "whitelist": false<br/>}</pre> | no |
 | <a name="input_waf_logs_retention"></a> [waf\_logs\_retention](#input\_waf\_logs\_retention) | Retention time (in days) of waf logs | `number` | `7` | no |
 | <a name="input_waf_name"></a> [waf\_name](#input\_waf\_name) | The name for WAF | `string` | `"cloudfront-waf"` | no |
 | <a name="input_waf_scope"></a> [waf\_scope](#input\_waf\_scope) | The scope of the deployed waf. Available options [CLOUDFRONT,REGIONAL] | `string` | `"CLOUDFRONT"` | no |
 | <a name="input_whitelisted_headers"></a> [whitelisted\_headers](#input\_whitelisted\_headers) | Map of header => value to be whitelisted. Set to null to disable the whitelisting | <pre>object({<br/>    headers           = map(string)<br/>    string_match_type = optional(string, "EXACTLY") # possible values: EXACTLY, STARTS_WITH, ENDS_WITH, CONTAINS, CONTAINS_WORD<br/>  })</pre> | `null` | no |
-| <a name="input_whitelisted_ips_v4"></a> [whitelisted\_ips\_v4](#input\_whitelisted\_ips\_v4) | List of IP ranges to be whitelisted. Set to empty list to disable the whitelisting | `list(string)` | `[]` | no |
-| <a name="input_whitelisted_ips_v6"></a> [whitelisted\_ips\_v6](#input\_whitelisted\_ips\_v6) | List of IP ranges to be whitelisted. Set to empty list to disable the whitelisting | `list(string)` | `[]` | no |
 
 ## Outputs
 

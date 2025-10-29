@@ -26,66 +26,56 @@ variable "waf_logs_retention" {
   type        = number
 }
 
-variable "enable_google_bots_whitelist" {
-  default     = true
-  description = "Whitelist the Google bots IPs. (https://developers.google.com/search/apis/ipranges/googlebot.json)"
-  type        = bool
+variable "google_bot_whitelisting" {
+  description = "Configuration for whitelisting Googlebot IPs. Set 'whitelist' to false to disable the whitelisting. Doc https://developers.google.com/search/apis/ipranges/googlebot.json.The IPs are automatically parsed from the given url. Use 'insert_header' to add custom headers to these requests (the headers will be prefixed automatically with `x-amzn-waf-`)."
+  default = {
+    whitelist = false
+  }
+  type = object({
+    whitelist     = bool
+    url           = optional(string, "https://developers.google.com/search/apis/ipranges/googlebot.json")
+    insert_header = optional(map(string), null)
+  })
 }
 
-variable "google_bots_url" {
-  default     = "https://developers.google.com/search/apis/ipranges/googlebot.json"
-  description = "The url where to get the Google bots IPs list. In case of problems the default url can be overridden."
-  type        = string
+variable "parsely_bot_whitelisting" {
+  description = "Configuration for whitelisting Parse.ly crawler IPs. Set 'whitelist' to false to disable the whitelisting. The IPs are automatically parsed from the given url. Use 'insert_header' to add custom headers to these requests (the headers will be prefixed automatically with `x-amzn-waf-`)."
+  default = {
+    whitelist = false
+  }
+  type = object({
+    whitelist     = bool
+    url           = optional(string, "https://www.parse.ly/static/data/crawler-ips.json")
+    insert_header = optional(map(string), null)
+  })
 }
 
-variable "enable_parsely_crawlers_whitelist" {
-  default     = false
-  description = "Whitelist the Parse.ly crawler IPs. (https://www.parse.ly/help/integration/crawler)"
-  type        = bool
-}
-
-variable "parsely_crawlers_url" {
-  default     = "https://www.parse.ly/static/data/crawler-ips.json"
-  description = "The url where to get the Parse.ly crawler IPs list. In case of problems the default url can be overridden."
-  type        = string
-}
-
-variable "enable_k6_whitelist" {
-  default     = false
-  description = "Whitelist the K6 load generators IPs. (https://k6.io/docs/cloud/cloud-reference/cloud-ips/)"
-  type        = bool
-}
-
-variable "k6_ip_ranges_url" {
-  default     = "https://ip-ranges.amazonaws.com/ip-ranges.json"
-  description = "The url where to get the K6 load generators IPs list. In case of problems the default url can be overridden."
-  type        = string
+variable "k6_bot_whitelisting" {
+  description = "Configuration for whitelisting the K6 load generators IPs. Set 'whitelist' to false to disable the whitelisting. Doc https://k6.io/docs/cloud/cloud-reference/cloud-ips/. The IPs are automatically parsed from the given url. Use 'insert_header' to add custom headers to these requests (the headers will be prefixed automatically with `x-amzn-waf-`)."
+  default = {
+    whitelist = false
+  }
+  type = object({
+    whitelist     = bool
+    url           = optional(string, "https://ip-ranges.amazonaws.com/ip-ranges.json")
+    insert_header = optional(map(string), null)
+  })
 }
 
 ## Variables for WAF Rules
 
-variable "whitelisted_ips_v4" {
-  default     = []
-  description = "List of IP ranges to be whitelisted. Set to empty list to disable the whitelisting"
-  type        = list(string)
+variable "ip_whitelisting" {
+  description = "Map of configurations for whitelisting custom lists of IPs. Use 'insert_header' to add custom headers to these requests (the headers will be prefixed automatically with `x-amzn-waf-`)."
+  default     = {}
+  type = map(object({
+    ips                = list(string)
+    ip_address_version = string # possible values: IPV4, IPV6
+    priority           = number # > 10
+    insert_header      = optional(map(string), null)
+  }))
   validation {
-    condition = alltrue([
-      for ip in var.whitelisted_ips_v4 : can(regex("^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}/\\d{1,2}", ip))
-    ])
-    error_message = "whitelisted_ips_v4 must contain valid IP V4 ranges with mask. Example: ['1.1.1.1/16', '255.255.255.255/32']"
-  }
-}
-
-variable "whitelisted_ips_v6" {
-  default     = []
-  description = "List of IP ranges to be whitelisted. Set to empty list to disable the whitelisting"
-  type        = list(string)
-  validation {
-    # Not the "real" regexp for ipv6. The right one has around 1000 characters...
-    condition = alltrue([
-      for ip in var.whitelisted_ips_v6 : can(regex("^[0-9a-fA-F:]*/\\d{1,3}", ip))
-    ])
-    error_message = "whitelisted_ips_v6 must contain valid IP V6 ranges."
+    condition     = alltrue([for item in var.ip_whitelisting : item.priority > 10 && (item.ip_address_version == "IPV4" || item.ip_address_version == "IPV6")])
+    error_message = "var.ip_whitelisting.priority must be greater than 10 and var.ip_whitelisting.ip_address_version must be either IPV4 or IPV6"
   }
 }
 
@@ -126,7 +116,7 @@ variable "aws_managed_rule_groups" {
   ]
   validation {
     condition     = alltrue([for group in var.aws_managed_rule_groups : group.priority >= 50 && group.priority < 60])
-    error_message = "var.aws_managed_rule_groups.priority must be between 10 and 19. var.aws_managed_rule_groups.override_group_action should be either count or block"
+    error_message = "var.aws_managed_rule_groups.priority must be between 50 and 59. var.aws_managed_rule_groups.override_group_action should be either count or block"
   }
 }
 
@@ -203,7 +193,7 @@ variable "country_rates" {
   # ]
   validation {
     condition     = alltrue([for uri in var.country_rates : uri.priority >= 70 && uri.priority < 80])
-    error_message = "var.country_rates.priority must be between 70 and 80"
+    error_message = "var.country_rates.priority must be between 70 and 79"
   }
 }
 
@@ -235,8 +225,8 @@ variable "block_uri_path_string" {
     search_string         = string
   }))
   validation {
-    condition     = alltrue([for uri in var.block_uri_path_string : uri.priority >= 2 && uri.priority < 11 && contains(["EXACTLY", "STARTS_WITH", "ENDS_WITH", "CONTAINS", "CONTAINS_WORD"], uri.positional_constraint)])
-    error_message = "var.block_uri_path_string.priority must be between 1 and 9"
+    condition     = alltrue([for uri in var.block_uri_path_string : uri.priority >= 3 && uri.priority < 11 && contains(["EXACTLY", "STARTS_WITH", "ENDS_WITH", "CONTAINS", "CONTAINS_WORD"], uri.positional_constraint)])
+    error_message = "var.block_uri_path_string.priority must be between 3 and 10"
   }
 }
 
@@ -269,7 +259,7 @@ variable "block_articles" {
   # ]
   validation {
     condition     = alltrue([for uri in var.block_articles : uri.priority >= 11 && uri.priority < 21])
-    error_message = "var.block_articles.priority must be between 10 and 19"
+    error_message = "var.block_articles.priority must be between 11 and 20"
   }
 }
 
@@ -293,7 +283,7 @@ variable "block_regex_pattern" {
   # }
   validation {
     condition     = alltrue([for uri in var.block_regex_pattern : uri.priority >= 21 && uri.priority < 31])
-    error_message = "var.block_regex_pattern.priority must be between 20 and 29"
+    error_message = "var.block_regex_pattern.priority must be between 21 and 30"
   }
 }
 

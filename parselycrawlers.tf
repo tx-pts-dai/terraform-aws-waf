@@ -2,12 +2,12 @@
 # trigger a large recrawl after a wrong update to the metadata of the articles
 locals {
   parsely_whitelist_json = jsondecode(data.http.parsely_ip_list.response_body)
-  parsely_crawlers       = var.enable_parsely_crawlers_whitelist ? [for ip in local.parsely_whitelist_json : "${ip}/32"] : []
+  parsely_crawlers       = var.parsely_bot_whitelisting.whitelist ? compact([for ip in local.parsely_whitelist_json : "${ip}/32"]) : []
 }
 
 
 data "http" "parsely_ip_list" {
-  url = var.parsely_crawlers_url
+  url = var.parsely_bot_whitelisting.url
 
   request_headers = {
     Accept = "application/json"
