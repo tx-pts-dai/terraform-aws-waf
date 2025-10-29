@@ -11,7 +11,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 5.0"
+      version = "~> 6.0"
     }
   }
 }
@@ -21,22 +21,61 @@ provider "aws" {
   alias  = "us"
 }
 
+locals {
+  google_bot_whitelisting  = { whitelist = true }
+  parsely_bot_whitelisting = { whitelist = false }
+  k6_bot_whitelisting      = { whitelist = false }
+  ip_whitelisting = {
+    "tx_group" = {
+      ip_address_version = "IPV4"
+      ips = [
+        "120.0.0.0/32",
+      ]
+      priority = 11
+      insert_header = {
+        "premium_access" = "true"
+      }
+    }
+    "tx_group_2" = {
+      ip_address_version = "IPV4"
+      ips = [
+        "120.0.1.0/32",
+      ]
+      priority = 12
+      insert_header = {
+        "premium_access" = "false"
+        "second_header"  = "some_value"
+      }
+    }
+    "tx_group_3" = {
+      ip_address_version = "IPV4"
+      ips = [
+        "120.0.2.0/32",
+      ]
+      priority = 13
+    }
+    "tx_group_4" = {
+      ip_address_version = "IPV6"
+      ips = [
+        "2001:db8::/32", # Example IPv6 range
+      ]
+      priority = 14
+    }
+  }
+}
+
 module "waf" {
   source = "../../../"
   providers = {
     aws = aws.us
   }
-  waf_name                          = "waf-module-regression-example"
-  waf_scope                         = "CLOUDFRONT"
-  waf_logs_retention                = 7
-  enable_google_bots_whitelist      = true
-  google_bots_url                   = "https://developers.google.com/search/apis/ipranges/googlebot.json"
-  enable_parsely_crawlers_whitelist = false
-  parsely_crawlers_url              = "https://www.parse.ly/static/data/crawler-ips.json"
-  enable_k6_whitelist               = false
-  k6_ip_ranges_url                  = "https://ip-ranges.amazonaws.com/ip-ranges.json"
-  whitelisted_ips_v4                = []
-  whitelisted_ips_v6                = []
+  waf_name                 = "waf-module-regression-example"
+  waf_scope                = "CLOUDFRONT"
+  waf_logs_retention       = 7
+  google_bot_whitelisting  = local.google_bot_whitelisting
+  parsely_bot_whitelisting = local.parsely_bot_whitelisting
+  k6_bot_whitelisting      = local.k6_bot_whitelisting
+  ip_whitelisting          = local.ip_whitelisting
   blocked_headers = [
     {
       header            = "host"
@@ -126,17 +165,14 @@ module "waf_parallel" {
     aws = aws.us
   }
 
-  waf_name                          = "waf-module-regression-example-parallel"
-  waf_scope                         = "CLOUDFRONT"
-  waf_logs_retention                = 7
-  enable_google_bots_whitelist      = true
-  google_bots_url                   = "https://developers.google.com/search/apis/ipranges/googlebot.json"
-  enable_parsely_crawlers_whitelist = false
-  parsely_crawlers_url              = "https://www.parse.ly/static/data/crawler-ips.json"
-  enable_k6_whitelist               = false
-  k6_ip_ranges_url                  = "https://ip-ranges.amazonaws.com/ip-ranges.json"
-  whitelisted_ips_v4                = []
-  whitelisted_ips_v6                = []
+  waf_name           = "waf-module-regression-example-parallel"
+  waf_scope          = "CLOUDFRONT"
+  waf_logs_retention = 7
+
+  google_bot_whitelisting  = local.google_bot_whitelisting
+  parsely_bot_whitelisting = local.parsely_bot_whitelisting
+  k6_bot_whitelisting      = local.k6_bot_whitelisting
+  ip_whitelisting          = local.ip_whitelisting
   whitelisted_headers = {
     headers = {
       "MyCustomHeader"  = "Lighthouse"
