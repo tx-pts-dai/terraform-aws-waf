@@ -22,9 +22,9 @@ provider "aws" {
 }
 
 locals {
-  google_bot_whitelisting  = { whitelist = true }
-  parsely_bot_whitelisting = { whitelist = false }
-  k6_bot_whitelisting      = { whitelist = false }
+  google_whitelist_config  = { enable = true }
+  parsely_whitelist_config = { enable = false }
+  k6_whitelist_config      = { enable = false }
   ip_whitelisting = {
     "tx_group" = {
       ip_address_version = "IPV4"
@@ -72,9 +72,9 @@ module "waf" {
   waf_name                 = "waf-module-regression-example"
   waf_scope                = "CLOUDFRONT"
   waf_logs_retention       = 7
-  google_bot_whitelisting  = local.google_bot_whitelisting
-  parsely_bot_whitelisting = local.parsely_bot_whitelisting
-  k6_bot_whitelisting      = local.k6_bot_whitelisting
+  google_whitelist_config  = local.google_whitelist_config
+  parsely_whitelist_config = local.parsely_whitelist_config
+  k6_whitelist_config      = local.k6_whitelist_config
   ip_whitelisting          = local.ip_whitelisting
   blocked_headers = [
     {
@@ -169,9 +169,9 @@ module "waf_parallel" {
   waf_scope          = "CLOUDFRONT"
   waf_logs_retention = 7
 
-  google_bot_whitelisting  = local.google_bot_whitelisting
-  parsely_bot_whitelisting = local.parsely_bot_whitelisting
-  k6_bot_whitelisting      = local.k6_bot_whitelisting
+  google_whitelist_config  = local.google_whitelist_config
+  parsely_whitelist_config = local.parsely_whitelist_config
+  k6_whitelist_config      = local.k6_whitelist_config
   ip_whitelisting          = local.ip_whitelisting
   whitelisted_headers = {
     headers = {

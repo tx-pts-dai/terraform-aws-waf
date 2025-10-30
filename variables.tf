@@ -26,37 +26,37 @@ variable "waf_logs_retention" {
   type        = number
 }
 
-variable "google_bot_whitelisting" {
+variable "google_whitelist_config" {
   description = "Configuration for whitelisting Googlebot IPs. Set 'whitelist' to false to disable the whitelisting. Doc https://developers.google.com/search/apis/ipranges/googlebot.json.The IPs are automatically parsed from the given url. Use 'insert_header' to add custom headers to these requests (the headers will be prefixed automatically with `x-amzn-waf-`)."
   default = {
-    whitelist = false
+    enable = false
   }
   type = object({
-    whitelist     = bool
+    enable        = bool
     url           = optional(string, "https://developers.google.com/search/apis/ipranges/googlebot.json")
     insert_header = optional(map(string), null)
   })
 }
 
-variable "parsely_bot_whitelisting" {
+variable "parsely_whitelist_config" {
   description = "Configuration for whitelisting Parse.ly crawler IPs. Set 'whitelist' to false to disable the whitelisting. The IPs are automatically parsed from the given url. Use 'insert_header' to add custom headers to these requests (the headers will be prefixed automatically with `x-amzn-waf-`)."
   default = {
-    whitelist = false
+    enable = false
   }
   type = object({
-    whitelist     = bool
+    enable        = bool
     url           = optional(string, "https://www.parse.ly/static/data/crawler-ips.json")
     insert_header = optional(map(string), null)
   })
 }
 
-variable "k6_bot_whitelisting" {
+variable "k6_whitelist_config" {
   description = "Configuration for whitelisting the K6 load generators IPs. Set 'whitelist' to false to disable the whitelisting. Doc https://k6.io/docs/cloud/cloud-reference/cloud-ips/. The IPs are automatically parsed from the given url. Use 'insert_header' to add custom headers to these requests (the headers will be prefixed automatically with `x-amzn-waf-`)."
   default = {
-    whitelist = false
+    enable = false
   }
   type = object({
-    whitelist     = bool
+    enable        = bool
     url           = optional(string, "https://ip-ranges.amazonaws.com/ip-ranges.json")
     insert_header = optional(map(string), null)
   })

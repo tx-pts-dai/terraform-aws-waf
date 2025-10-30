@@ -26,36 +26,36 @@ locals {
     local.country_rate_chunks
   )
 
-  google_ipv6 = {
+  google_whitelist_ipv6 = {
     ips                = local.google_bots_ipv6
     ip_address_version = "IPV6"
-    insert_header      = var.google_bot_whitelisting.insert_header
+    insert_header      = var.google_whitelist_config.insert_header
     priority           = 1
   }
-  google_ipv4 = {
+  google_whitelist_ipv4 = {
     ips                = local.google_bots_ipv4
     ip_address_version = "IPV4"
-    insert_header      = var.google_bot_whitelisting.insert_header
+    insert_header      = var.google_whitelist_config.insert_header
     priority           = 2
   }
-  parsely_ipv4 = {
+  parsely_whitelist_ipv4 = {
     ips                = local.parsely_crawlers
     ip_address_version = "IPV4"
-    insert_header      = var.parsely_bot_whitelisting.insert_header
+    insert_header      = var.parsely_whitelist_config.insert_header
     priority           = 3
   }
-  k6_ipv4 = {
+  k6_whitelist_ipv4 = {
     ips                = local.k6_load_generators_ipv4
     ip_address_version = "IPV4"
-    insert_header      = var.k6_bot_whitelisting.insert_header
+    insert_header      = var.k6_whitelist_config.insert_header
     priority           = 4
   }
 
   group_whitelist = merge(
-    var.google_bot_whitelisting.whitelist ? { google_ipv4 = local.google_ipv4 } : {},
-    var.google_bot_whitelisting.whitelist ? { google_ipv6 = local.google_ipv6 } : {},
-    var.parsely_bot_whitelisting.whitelist ? { parsely_ipv4 = local.parsely_ipv4 } : {},
-    var.k6_bot_whitelisting.whitelist ? { k6_ipv4 = local.k6_ipv4 } : {},
+    var.google_whitelist_config.enable ? { google_ipv4 = local.google_whitelist_ipv4 } : {},
+    var.google_whitelist_config.enable ? { google_ipv6 = local.google_whitelist_ipv6 } : {},
+    var.parsely_whitelist_config.enable ? { parsely_ipv4 = local.parsely_whitelist_ipv4 } : {},
+    var.k6_whitelist_config.enable ? { k6_ipv4 = local.k6_whitelist_ipv4 } : {},
     var.ip_whitelisting
   )
 
