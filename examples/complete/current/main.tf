@@ -22,7 +22,8 @@ provider "aws" {
 }
 
 module "waf" {
-  source = "../../../"
+  source  = "tx-pts-dai/waf/aws"
+  version = "~> 6.0"
   providers = {
     aws = aws.us
   }
