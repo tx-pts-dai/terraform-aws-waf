@@ -22,7 +22,11 @@ provider "aws" {
 }
 
 locals {
-  google_whitelist_config  = { enable = true }
+  google_whitelist_config = {
+    enable        = true
+    url           = "https://developers.google.com/search/apis/ipranges/googlebot.json"
+    insert_header = { "foo" = "bar" }
+  }
   parsely_whitelist_config = { enable = false }
   k6_whitelist_config      = { enable = false }
   ip_whitelisting = {
@@ -31,10 +35,8 @@ locals {
       ips = [
         "120.0.0.0/32",
       ]
-      priority = 11
-      insert_header = {
-        "premium_access" = "true"
-      }
+      priority      = 11
+      insert_header = { "foo" = "bar" }
     }
     "tx_group_2" = {
       ip_address_version = "IPV4"
@@ -43,8 +45,8 @@ locals {
       ]
       priority = 12
       insert_header = {
-        "premium_access" = "false"
-        "second_header"  = "some_value"
+        "foo"           = "bar"
+        "second_header" = "some_value"
       }
     }
     "tx_group_3" = {
