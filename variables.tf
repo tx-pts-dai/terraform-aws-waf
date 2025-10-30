@@ -76,11 +76,11 @@ variable "ip_whitelisting" {
   validation {
     condition = alltrue(
       [for item in var.ip_whitelisting : item.priority > 10 &&
-      (item.ip_address_version == "IPV4" || item.ip_address_version == "IPV6")] &&
-      (
-        item.ip_address_version == "IPV6" && alltrue([for ip in var.ip_whitelisting.ips : can(regex("^[0-9a-fA-F:]*/\\d{1,3}", ip))]) ||
-        item.ip_address_version == "IPV4" && alltrue([for ip in var.whitelisted_ips_v4 : can(regex("^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}/\\d{1,2}", ip))])
-      )
+        (
+          item.ip_address_version == "IPV4" || item.ip_address_version == "IPV6") && (
+          item.ip_address_version == "IPV6" && alltrue([for ip in item.ips : can(regex("^[0-9a-fA-F:]*/\\d{1,3}", ip))]) ||
+          item.ip_address_version == "IPV4" && alltrue([for ip in item.ips : can(regex("^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}/\\d{1,2}", ip))])
+      )]
     )
     error_message = "var.ip_whitelisting.priority must be greater than 10 and var.ip_whitelisting.ip_address_version must be either IPV4 or IPV6 with mask. Example: ['1.1.1.1/16'] for IPV4 and ['2001:db8::/32'] for IPV6"
   }
