@@ -1,12 +1,11 @@
 ## Priorities:
 # 0: block_based_on_headers
-# 1: limit_search_requests_by_countries
-# 2-10: block_uri_path_string
+# 1: whitelist_group
+# 2: limit_search_requests_by_countries
+# 3-10: block_uri_path_string
 # 11-20: block_articles
 # 21-30: block_regex_pattern
-# 31-39 free
-# 40: whitelisted_ips_v4
-# 41: whitelisted_ips_v6
+# 32-41 free
 # 42: Rate_limit_everything_apart_from_CH
 # 43: count_requests_from_ch
 # 44: whitelist_based_on_headers
@@ -26,16 +25,40 @@ locals {
     range(length(local.country_rate_chunks)),
     local.country_rate_chunks
   )
-  group_whitelist_ipv6 = compact(concat(
-    var.whitelisted_ips_v6,
-    local.google_bots_ipv6, # empty if enable_google_bots_whitelist is set to false
-  ))
-  group_whitelist_ipv4 = compact(concat(
-    var.whitelisted_ips_v4,
-    local.google_bots_ipv4,        # empty if enable_google_bots_whitelist is set to false
-    local.parsely_crawlers,        # empty if enable_parsely_crawlers_whitelist is set to false
-    local.k6_load_generators_ipv4, # empty if enable_k6_whitelist is set to false
-  ))
+
+  google_whitelist_ipv6 = {
+    ips                = local.google_bots_ipv6
+    ip_address_version = "IPV6"
+    insert_header      = var.google_whitelist_config.insert_header
+    priority           = 1
+  }
+  google_whitelist_ipv4 = {
+    ips                = local.google_bots_ipv4
+    ip_address_version = "IPV4"
+    insert_header      = var.google_whitelist_config.insert_header
+    priority           = 2
+  }
+  parsely_whitelist_ipv4 = {
+    ips                = local.parsely_crawlers
+    ip_address_version = "IPV4"
+    insert_header      = var.parsely_whitelist_config.insert_header
+    priority           = 3
+  }
+  k6_whitelist_ipv4 = {
+    ips                = local.k6_load_generators_ipv4
+    ip_address_version = "IPV4"
+    insert_header      = var.k6_whitelist_config.insert_header
+    priority           = 4
+  }
+
+  group_whitelist = merge(
+    var.google_whitelist_config.enable ? { google_ipv4 = local.google_whitelist_ipv4 } : {},
+    var.google_whitelist_config.enable ? { google_ipv6 = local.google_whitelist_ipv6 } : {},
+    var.parsely_whitelist_config.enable ? { parsely_ipv4 = local.parsely_whitelist_ipv4 } : {},
+    var.k6_whitelist_config.enable ? { k6_ipv4 = local.k6_whitelist_ipv4 } : {},
+    var.ip_whitelisting
+  )
+
   rate_limit_response_key = "rate-limit-error"
   custom_response_body    = <<MULTILINE
       <div style="font-family: Arial, sans-serif;text-align: center; padding: 50px; background-color: #f4f4f4;">
@@ -50,28 +73,6 @@ locals {
       </div>
   MULTILINE
 
-}
-
-resource "aws_wafv2_ip_set" "whitelisted_ips_v4" {
-  count              = length(local.group_whitelist_ipv4) > 0 ? 1 : 0
-  name               = "${var.waf_name}_whitelisted_ips_v4"
-  scope              = var.waf_scope
-  ip_address_version = "IPV4"
-  addresses          = local.group_whitelist_ipv4
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
-resource "aws_wafv2_ip_set" "whitelisted_ips_v6" {
-  count              = length(local.group_whitelist_ipv6) > 0 ? 1 : 0
-  name               = "${var.waf_name}_whitelisted_ips_v6"
-  scope              = var.waf_scope
-  ip_address_version = "IPV6"
-  addresses          = local.group_whitelist_ipv6
-  lifecycle {
-    create_before_destroy = true
-  }
 }
 
 resource "aws_wafv2_regex_pattern_set" "string" {
@@ -107,151 +108,27 @@ resource "aws_wafv2_web_acl" "waf" {
   }
 
   dynamic "rule" {
-    for_each = length(local.group_whitelist_ipv4) == 0 ? [] : [1]
+    for_each = var.blocked_headers != null ? [1] : []
     content {
-      name     = "${var.waf_name}_whitelisted_ips_v4"
-      priority = 40
+      name     = "${var.waf_name}_block_based_on_headers"
+      priority = 0
       action {
-        allow {}
-      }
-      statement {
-        ip_set_reference_statement {
-          arn = aws_wafv2_ip_set.whitelisted_ips_v4[0].arn
-          dynamic "ip_set_forwarded_ip_config" {
-            for_each = var.waf_scope == "REGIONAL" ? [1] : []
-            content {
-              header_name       = "X-Forwarded-For"
-              fallback_behavior = "MATCH"
-              position          = "ANY" # https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_web_acl#position
-            }
-          }
-        }
-      }
-      visibility_config {
-        cloudwatch_metrics_enabled = true
-        metric_name                = "${var.waf_name}_whitelisted_ips_v4"
-        sampled_requests_enabled   = true
-      }
-    }
-  }
-
-  dynamic "rule" {
-    for_each = length(local.group_whitelist_ipv6) == 0 ? [] : [1]
-    content {
-      name     = "${var.waf_name}_whitelisted_ips_v6"
-      priority = 41
-      action {
-        allow {}
-      }
-      statement {
-        ip_set_reference_statement {
-          arn = aws_wafv2_ip_set.whitelisted_ips_v6[0].arn
-          dynamic "ip_set_forwarded_ip_config" {
-            for_each = var.waf_scope == "REGIONAL" ? [1] : []
-            content {
-              header_name       = "X-Forwarded-For"
-              fallback_behavior = "MATCH"
-              position          = "ANY" # https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_web_acl#position
-            }
-          }
-        }
-      }
-      visibility_config {
-        cloudwatch_metrics_enabled = true
-        metric_name                = "${var.waf_name}_whitelisted_ips_v6"
-        sampled_requests_enabled   = true
-      }
-    }
-  }
-
-  # This rule is meant to be a failsafe switch in case of attack
-  # Change "count" to "block" in the console if you are under attack and want to
-  # rate limit to a low number of requests every country except Switzerland
-  rule {
-    name     = "${var.waf_name}_rate_limit_everything_apart_from_CH"
-    priority = 42
-    action {
-      count {}
-    }
-    statement {
-      rate_based_statement {
-        aggregate_key_type = "IP"
-        limit              = 300
-        scope_down_statement {
-          not_statement {
-            statement {
-              geo_match_statement {
-                country_codes = ["CH"]
-                dynamic "forwarded_ip_config" {
-                  for_each = var.waf_scope == "REGIONAL" ? [1] : []
-                  content {
-                    header_name       = "X-Forwarded-For"
-                    fallback_behavior = "MATCH"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-    visibility_config {
-      cloudwatch_metrics_enabled = true
-      metric_name                = "${var.waf_name}_rate_limit_everything_apart_from_CH"
-      sampled_requests_enabled   = true
-    }
-  }
-
-  dynamic "rule" {
-    for_each = var.count_requests_from_ch ? [1] : []
-    content {
-      name     = "${var.waf_name}_Switzerland"
-      priority = 43
-      action {
-        count {}
-      }
-      statement {
-        geo_match_statement {
-          country_codes = ["CH"]
-          dynamic "forwarded_ip_config" {
-            for_each = var.waf_scope == "REGIONAL" ? [1] : []
-            content {
-              header_name       = "X-Forwarded-For"
-              fallback_behavior = "MATCH"
-            }
-          }
-        }
-      }
-      visibility_config {
-        cloudwatch_metrics_enabled = true
-        metric_name                = "${var.waf_name}_Switzerland"
-        sampled_requests_enabled   = true
-      }
-    }
-  }
-
-  dynamic "rule" {
-    for_each = var.whitelisted_headers != null ? [1] : []
-    content {
-      name     = "${var.waf_name}_Whitelist_based_on_headers"
-      priority = 44
-      action {
-        allow {}
+        block {}
       }
       dynamic "statement" {
         # or_statement needs 2 arguments so handle the case when only one article is in the rule
-        for_each = length(var.whitelisted_headers.headers) > 1 ? [1] : [] # if more than one element use or_statement
+        for_each = length(var.blocked_headers) > 1 ? [1] : [] # if more than one element use or_statement
         content {
           or_statement {
             dynamic "statement" {
-              for_each = var.whitelisted_headers.headers
+              for_each = var.blocked_headers
               content {
                 byte_match_statement {
-                  positional_constraint = var.whitelisted_headers.string_match_type
-                  search_string         = statement.value
+                  positional_constraint = statement.value.string_match_type
+                  search_string         = statement.value.value
                   field_to_match {
                     single_header {
-                      name = lower(statement.key)
+                      name = lower(statement.value.header)
                     }
                   }
                   text_transformation {
@@ -266,14 +143,14 @@ resource "aws_wafv2_web_acl" "waf" {
       }
       dynamic "statement" {
         # or_statement needs 2 arguments so handle the case when only one article is in the rule
-        for_each = length(var.whitelisted_headers.headers) == 1 ? var.whitelisted_headers.headers : {} # if more than one element use or_statement
+        for_each = length(var.blocked_headers) == 1 ? var.blocked_headers : [] # if more than one element use or_statement
         content {
           byte_match_statement {
-            positional_constraint = var.whitelisted_headers.string_match_type
-            search_string         = statement.value
+            positional_constraint = statement.value.string_match_type
+            search_string         = statement.value.value
             field_to_match {
               single_header {
-                name = lower(statement.key)
+                name = lower(statement.value.header)
               }
             }
             text_transformation {
@@ -285,73 +162,28 @@ resource "aws_wafv2_web_acl" "waf" {
       }
       visibility_config {
         cloudwatch_metrics_enabled = true
-        metric_name                = "${var.waf_name}_Whitelisted_headers"
+        metric_name                = "${var.waf_name}_block_based_on_headers"
         sampled_requests_enabled   = true
       }
     }
   }
 
   dynamic "rule" {
-    for_each = var.aws_managed_rule_groups
+    for_each = length(local.group_whitelist) == 0 ? [] : [1]
     content {
-      name     = "${var.waf_name}_${rule.value.name}"
-      priority = rule.value.priority
+      name     = "${var.waf_name}_whitelist_group"
+      priority = 1
       override_action {
-        count {} # valid blocks: count or none
+        none {}
       }
       statement {
-        managed_rule_group_statement {
-          name        = rule.value.name
-          vendor_name = "AWS"
+        rule_group_reference_statement {
+          arn = aws_wafv2_rule_group.whitelist.arn
         }
       }
       visibility_config {
         cloudwatch_metrics_enabled = true
-        metric_name                = "${var.waf_name}_${rule.value.name}"
-        sampled_requests_enabled   = true
-      }
-    }
-  }
-
-  dynamic "rule" {
-    for_each = var.everybody_else_limit == 0 ? [] : [1]
-    content {
-      name     = "${var.waf_name}_Everybody_else"
-      priority = 80
-      action {
-        block {
-          custom_response {
-            custom_response_body_key = local.rate_limit_response_key
-            response_code            = 429
-          }
-        }
-      }
-      statement {
-        rate_based_statement {
-          aggregate_key_type = "IP"
-          limit              = var.everybody_else_limit
-
-          scope_down_statement {
-            not_statement {
-              statement {
-                geo_match_statement {
-                  country_codes = local.everybody_else_exclude_country_codes
-                  dynamic "forwarded_ip_config" {
-                    for_each = var.waf_scope == "REGIONAL" ? [1] : []
-                    content {
-                      header_name       = "X-Forwarded-For"
-                      fallback_behavior = "MATCH"
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-      visibility_config {
-        cloudwatch_metrics_enabled = true
-        metric_name                = "${var.waf_name}_Everybody_else"
+        metric_name                = "${var.waf_name}_whitelist_group"
         sampled_requests_enabled   = true
       }
     }
@@ -361,7 +193,7 @@ resource "aws_wafv2_web_acl" "waf" {
     for_each = length(var.limit_search_requests_by_countries.country_codes) > 0 ? [1] : []
     content {
       name     = "${var.waf_name}_limit_search_requests_by_countries"
-      priority = 1
+      priority = 2
       action {
         block {
           custom_response {
@@ -572,28 +404,94 @@ resource "aws_wafv2_web_acl" "waf" {
     }
   }
 
+  # This rule is meant to be a failsafe switch in case of attack
+  # Change "count" to "block" in the console if you are under attack and want to
+  # rate limit to a low number of requests every country except Switzerland
+  rule {
+    name     = "${var.waf_name}_rate_limit_everything_apart_from_CH"
+    priority = 42
+    action {
+      count {}
+    }
+    statement {
+      rate_based_statement {
+        aggregate_key_type = "IP"
+        limit              = 300
+        scope_down_statement {
+          not_statement {
+            statement {
+              geo_match_statement {
+                country_codes = ["CH"]
+                dynamic "forwarded_ip_config" {
+                  for_each = var.waf_scope == "REGIONAL" ? [1] : []
+                  content {
+                    header_name       = "X-Forwarded-For"
+                    fallback_behavior = "MATCH"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${var.waf_name}_rate_limit_everything_apart_from_CH"
+      sampled_requests_enabled   = true
+    }
+  }
+
   dynamic "rule" {
-    for_each = var.blocked_headers != null ? [1] : []
+    for_each = var.count_requests_from_ch ? [1] : []
     content {
-      name     = "${var.waf_name}_block_based_on_headers"
-      priority = 0
+      name     = "${var.waf_name}_Switzerland"
+      priority = 43
       action {
-        block {}
+        count {}
+      }
+      statement {
+        geo_match_statement {
+          country_codes = ["CH"]
+          dynamic "forwarded_ip_config" {
+            for_each = var.waf_scope == "REGIONAL" ? [1] : []
+            content {
+              header_name       = "X-Forwarded-For"
+              fallback_behavior = "MATCH"
+            }
+          }
+        }
+      }
+      visibility_config {
+        cloudwatch_metrics_enabled = true
+        metric_name                = "${var.waf_name}_Switzerland"
+        sampled_requests_enabled   = true
+      }
+    }
+  }
+
+  dynamic "rule" {
+    for_each = var.whitelisted_headers != null ? [1] : []
+    content {
+      name     = "${var.waf_name}_Whitelist_based_on_headers"
+      priority = 44
+      action {
+        allow {}
       }
       dynamic "statement" {
         # or_statement needs 2 arguments so handle the case when only one article is in the rule
-        for_each = length(var.blocked_headers) > 1 ? [1] : [] # if more than one element use or_statement
+        for_each = length(var.whitelisted_headers.headers) > 1 ? [1] : [] # if more than one element use or_statement
         content {
           or_statement {
             dynamic "statement" {
-              for_each = var.blocked_headers
+              for_each = var.whitelisted_headers.headers
               content {
                 byte_match_statement {
-                  positional_constraint = statement.value.string_match_type
-                  search_string         = statement.value.value
+                  positional_constraint = var.whitelisted_headers.string_match_type
+                  search_string         = statement.value
                   field_to_match {
                     single_header {
-                      name = lower(statement.value.header)
+                      name = lower(statement.key)
                     }
                   }
                   text_transformation {
@@ -608,14 +506,14 @@ resource "aws_wafv2_web_acl" "waf" {
       }
       dynamic "statement" {
         # or_statement needs 2 arguments so handle the case when only one article is in the rule
-        for_each = length(var.blocked_headers) == 1 ? var.blocked_headers : [] # if more than one element use or_statement
+        for_each = length(var.whitelisted_headers.headers) == 1 ? var.whitelisted_headers.headers : {} # if more than one element use or_statement
         content {
           byte_match_statement {
-            positional_constraint = statement.value.string_match_type
-            search_string         = statement.value.value
+            positional_constraint = var.whitelisted_headers.string_match_type
+            search_string         = statement.value
             field_to_match {
               single_header {
-                name = lower(statement.value.header)
+                name = lower(statement.key)
               }
             }
             text_transformation {
@@ -627,7 +525,73 @@ resource "aws_wafv2_web_acl" "waf" {
       }
       visibility_config {
         cloudwatch_metrics_enabled = true
-        metric_name                = "${var.waf_name}_block_based_on_headers"
+        metric_name                = "${var.waf_name}_Whitelisted_headers"
+        sampled_requests_enabled   = true
+      }
+    }
+  }
+
+  dynamic "rule" {
+    for_each = var.aws_managed_rule_groups
+    content {
+      name     = "${var.waf_name}_${rule.value.name}"
+      priority = rule.value.priority
+      override_action {
+        count {} # valid blocks: count or none
+      }
+      statement {
+        managed_rule_group_statement {
+          name        = rule.value.name
+          vendor_name = "AWS"
+        }
+      }
+      visibility_config {
+        cloudwatch_metrics_enabled = true
+        metric_name                = "${var.waf_name}_${rule.value.name}"
+        sampled_requests_enabled   = true
+      }
+    }
+  }
+
+  dynamic "rule" {
+    for_each = var.everybody_else_limit == 0 ? [] : [1]
+    content {
+      name     = "${var.waf_name}_Everybody_else"
+      priority = 80
+      action {
+        block {
+          custom_response {
+            custom_response_body_key = local.rate_limit_response_key
+            response_code            = 429
+          }
+        }
+      }
+      statement {
+        rate_based_statement {
+          aggregate_key_type = "IP"
+          limit              = var.everybody_else_limit
+
+          scope_down_statement {
+            not_statement {
+              statement {
+                geo_match_statement {
+                  country_codes = local.everybody_else_exclude_country_codes
+                  dynamic "forwarded_ip_config" {
+                    for_each = var.waf_scope == "REGIONAL" ? [1] : []
+                    content {
+                      header_name       = "X-Forwarded-For"
+                      fallback_behavior = "MATCH"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      visibility_config {
+        cloudwatch_metrics_enabled = true
+        metric_name                = "${var.waf_name}_Everybody_else"
         sampled_requests_enabled   = true
       }
     }
@@ -949,6 +913,73 @@ resource "aws_wafv2_rule_group" "country_count_rules" {
   visibility_config {
     cloudwatch_metrics_enabled = true
     metric_name                = "${var.waf_name}_country_count_rules"
+    sampled_requests_enabled   = true
+  }
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_wafv2_ip_set" "whitelist" {
+  for_each           = local.group_whitelist
+  name               = "${var.waf_name}_whitelist_${each.key}"
+  scope              = var.waf_scope
+  ip_address_version = each.value.ip_address_version
+  addresses          = each.value.ips
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_wafv2_rule_group" "whitelist" {
+  name     = "${var.waf_name}_whitelist"
+  scope    = var.waf_scope
+  capacity = 100
+  dynamic "rule" {
+    for_each = local.group_whitelist
+    content {
+      name     = "${var.waf_name}_${rule.key}"
+      priority = rule.value.priority
+      action {
+        allow {
+          dynamic "custom_request_handling" {
+            for_each = rule.value.insert_header != null ? [1] : []
+            content {
+              dynamic "insert_header" {
+                for_each = rule.value.insert_header
+                content {
+                  name  = insert_header.key
+                  value = insert_header.value
+                }
+              }
+            }
+
+          }
+        }
+      }
+      statement {
+        ip_set_reference_statement {
+          arn = aws_wafv2_ip_set.whitelist[rule.key].arn
+          dynamic "ip_set_forwarded_ip_config" {
+            for_each = var.waf_scope == "REGIONAL" ? [1] : []
+            content {
+              header_name       = "X-Forwarded-For"
+              fallback_behavior = "MATCH"
+              position          = "ANY" # https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_web_acl#position
+            }
+          }
+        }
+      }
+      visibility_config {
+        cloudwatch_metrics_enabled = true
+        metric_name                = "${var.waf_name}_${rule.key}"
+        sampled_requests_enabled   = true
+      }
+    }
+  }
+  visibility_config {
+    cloudwatch_metrics_enabled = true
+    metric_name                = "${var.waf_name}_whitelist_add_header"
     sampled_requests_enabled   = true
   }
   lifecycle {

@@ -11,7 +11,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 5.0"
+      version = "~> 6.0"
     }
   }
 }
@@ -23,22 +23,23 @@ provider "aws" {
 
 module "waf" {
   source  = "tx-pts-dai/waf/aws"
-  version = "~> 5.0"
+  version = "~> 6.0"
   providers = {
     aws = aws.us
   }
 
-  waf_name                          = "waf-module-regression-example"
-  waf_scope                         = "CLOUDFRONT"
-  waf_logs_retention                = 7
-  enable_google_bots_whitelist      = true
-  google_bots_url                   = "https://developers.google.com/search/apis/ipranges/googlebot.json"
-  enable_parsely_crawlers_whitelist = false
-  parsely_crawlers_url              = "https://www.parse.ly/static/data/crawler-ips.json"
-  enable_k6_whitelist               = false
-  k6_ip_ranges_url                  = "https://ip-ranges.amazonaws.com/ip-ranges.json"
-  whitelisted_ips_v4                = []
-  whitelisted_ips_v6                = []
+  waf_name           = "waf-module-regression-example"
+  waf_scope          = "CLOUDFRONT"
+  waf_logs_retention = 7
+
+
+  blocked_headers = [
+    {
+      header            = "host"
+      value             = ".cloudfront.net"
+      string_match_type = "ENDS_WITH"
+    },
+  ]
   whitelisted_headers = {
     headers = {
       "MyCustomHeader"  = "Lighthouse"
@@ -117,14 +118,15 @@ module "waf" {
 
 module "waf_parallel" {
   source  = "tx-pts-dai/waf/aws"
-  version = "~> 5.0"
+  version = "~> 6.0"
   providers = {
     aws = aws.us
   }
 
-  waf_name                          = "waf-module-regression-example-parallel"
-  waf_scope                         = "CLOUDFRONT"
-  waf_logs_retention                = 7
+  waf_name           = "waf-module-regression-example-parallel"
+  waf_scope          = "CLOUDFRONT"
+  waf_logs_retention = 7
+
   enable_google_bots_whitelist      = true
   google_bots_url                   = "https://developers.google.com/search/apis/ipranges/googlebot.json"
   enable_parsely_crawlers_whitelist = false
@@ -133,6 +135,7 @@ module "waf_parallel" {
   k6_ip_ranges_url                  = "https://ip-ranges.amazonaws.com/ip-ranges.json"
   whitelisted_ips_v4                = []
   whitelisted_ips_v6                = []
+
   whitelisted_headers = {
     headers = {
       "MyCustomHeader"  = "Lighthouse"
