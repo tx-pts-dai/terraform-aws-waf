@@ -13,8 +13,8 @@ data "http" "parsely_ip_list" {
 
   request_headers = merge(
     {
-      Accept       = "application/json"
-      "User-Agent" = "terraform-http"
+      Accept     = "application/json"
+      User-Agent = "terraform-http"
     },
     var.parsely_whitelist_config.http_call_extra_headers
   )

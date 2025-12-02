@@ -13,8 +13,8 @@ data "http" "k6_load_generators" {
 
   request_headers = merge(
     {
-      Accept       = "application/json"
-      "User-Agent" = "terraform-http"
+      Accept     = "application/json"
+      User-Agent = "terraform-http"
     },
     var.k6_whitelist_config.http_call_extra_headers
   )
