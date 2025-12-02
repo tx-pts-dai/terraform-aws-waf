@@ -1,5 +1,5 @@
 locals {
-  k6_whitelist_json = var.k6_whitelist_config.enable ? jsondecode(data.http.k6_load_generators[0].response_body) : "{}"
+  k6_whitelist_json = var.k6_whitelist_config.enable ? jsondecode(data.http.k6_load_generators[0].response_body) : null
   k6_load_generators_ipv4 = var.k6_whitelist_config.enable ? compact([
     for entry in local.k6_whitelist_json.prefixes : entry.ip_prefix if entry.region == "eu-central-1"
   ]) : []
