@@ -27,11 +27,11 @@ variable "waf_logs_retention" {
 }
 
 variable "google_whitelist_config" {
-  description = "Configuration for whitelisting Googlebot IPs. Set 'whitelist' to false to disable the whitelisting. Doc https://developers.google.com/search/apis/ipranges/googlebot.json. The IPs are automatically parsed from the given url. Use 'insert_header' to add custom headers to these requests (the headers will be prefixed automatically with `x-amzn-waf-`)."
+  description = "Configuration for whitelisting Googlebot IPs. Set 'whitelist' to false to disable the whitelisting. Doc https://developers.google.com/crawling/docs/crawlers-fetchers/verify-google-requests. The IPs are automatically parsed from the given url. Use 'insert_header' to add custom headers to these requests (the headers will be prefixed automatically with `x-amzn-waf-`)."
   default     = {}
   type = object({
     enable                  = optional(bool, false)
-    url                     = optional(string, "https://developers.google.com/search/apis/ipranges/googlebot.json")
+    url                     = optional(string, "https://developers.google.com/static/crawling/ipranges/common-crawlers.json")
     insert_header           = optional(map(string), null)
     http_call_extra_headers = optional(map(string), {})
   })
