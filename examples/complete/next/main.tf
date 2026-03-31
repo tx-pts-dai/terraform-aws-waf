@@ -13,6 +13,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 6.0"
     }
+    http = {
+      source  = "hashicorp/http"
+      version = "~> 3.0"
+    }
   }
 }
 
@@ -21,14 +25,16 @@ provider "aws" {
   alias  = "us"
 }
 
+module "googlebot_ips" {
+  source = "../../../modules/ip_list_fetcher"
+
+  url      = "https://developers.google.com/static/crawling/ipranges/common-crawlers.json"
+  root_key = "prefixes"
+  ipv4_key = "ipv4Prefix"
+  ipv6_key = "ipv6Prefix"
+}
+
 locals {
-  google_whitelist_config = {
-    enable        = true
-    url           = "https://developers.google.com/search/apis/ipranges/googlebot.json"
-    insert_header = { "foo" = "bar" }
-  }
-  parsely_whitelist_config = { enable = false }
-  k6_whitelist_config      = { enable = false }
   ip_whitelisting = {
     "tx_group" = {
       ip_address_version = "IPV4"
@@ -59,9 +65,21 @@ locals {
     "tx_group_4" = {
       ip_address_version = "IPV6"
       ips = [
-        "2001:db8::/32", # Example IPv6 range
+        "2001:db8::/32",
       ]
       priority = 14
+    }
+    "googlebot_ipv4" = {
+      ip_address_version = "IPV4"
+      ips                = module.googlebot_ips.ipv4_addresses
+      priority           = 15
+      insert_header      = { "foo" = "bar" }
+    }
+    "googlebot_ipv6" = {
+      ip_address_version = "IPV6"
+      ips                = module.googlebot_ips.ipv6_addresses
+      priority           = 16
+      insert_header      = { "foo" = "bar" }
     }
   }
 }
@@ -71,20 +89,20 @@ module "waf" {
   providers = {
     aws = aws.us
   }
-  waf_name                 = "waf-module-regression-example"
-  waf_scope                = "CLOUDFRONT"
-  waf_logs_retention       = 7
-  google_whitelist_config  = local.google_whitelist_config
-  parsely_whitelist_config = local.parsely_whitelist_config
-  k6_whitelist_config      = local.k6_whitelist_config
-  ip_whitelisting          = local.ip_whitelisting
-  blocked_headers = [
-    {
-      header            = "host"
-      value             = ".cloudfront.net"
-      string_match_type = "ENDS_WITH"
-    },
-  ]
+  waf_name           = "waf-module-regression-example"
+  waf_scope          = "CLOUDFRONT"
+  waf_logs_retention = 7
+  ip_whitelisting    = local.ip_whitelisting
+  blocked_headers = {
+    priority = 0
+    rules = [
+      {
+        header            = "host"
+        value             = ".cloudfront.net"
+        string_match_type = "ENDS_WITH"
+      },
+    ]
+  }
   whitelisted_headers = {
     headers = {
       "MyCustomHeader"  = "Lighthouse"
@@ -114,7 +132,7 @@ module "waf" {
       priority = 61
     }
   ]
-  count_requests_from_ch = false
+  count_requests_from_ch = { enabled = false }
   country_rates = [
     {
       name          = "Group_1-CH"
@@ -154,7 +172,7 @@ module "waf" {
     limit         = 100
     country_codes = ["CH"]
   }
-  everybody_else_limit      = 0
+  everybody_else_limit      = { limit = 0 }
   block_uri_path_string     = []
   block_articles            = []
   block_regex_pattern       = {}
@@ -171,10 +189,7 @@ module "waf_parallel" {
   waf_scope          = "CLOUDFRONT"
   waf_logs_retention = 7
 
-  google_whitelist_config  = local.google_whitelist_config
-  parsely_whitelist_config = local.parsely_whitelist_config
-  k6_whitelist_config      = local.k6_whitelist_config
-  ip_whitelisting          = local.ip_whitelisting
+  ip_whitelisting = local.ip_whitelisting
   whitelisted_headers = {
     headers = {
       "MyCustomHeader"  = "Lighthouse"
@@ -204,7 +219,7 @@ module "waf_parallel" {
       priority = 61
     }
   ]
-  count_requests_from_ch = false
+  count_requests_from_ch = { enabled = false }
   country_rates = [
     {
       name          = "Group_1-CH"
@@ -240,7 +255,7 @@ module "waf_parallel" {
       priority      = 91
     }
   ]
-  everybody_else_limit = 0
+  everybody_else_limit = { limit = 0 }
   limit_search_requests_by_countries = {
     limit         = 100
     country_codes = ["CH"]
