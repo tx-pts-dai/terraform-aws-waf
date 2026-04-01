@@ -179,8 +179,8 @@ variable "country_rates" {
   # ]
 }
 
-variable "everybody_else_limit" {
-  description = "Rate limit for all country_codes not covered by country_rates. Set limit to 0 to disable the rule."
+variable "everybody_else_config" {
+  description = "Priority and limit for all country_codes not covered by country_rates. Set limit to 0 to disable the rule."
   type = object({
     limit    = optional(number, 0)
     priority = optional(number, 80)
@@ -297,7 +297,7 @@ variable "logs_bucket_name_override" {
 }
 
 variable "country_count_rules" {
-  description = "Enable the deployment of rules that count the requests from specific countries."
+  description = "Enable the deployment of rules that count the requests from specific countries. The priority defined here is the one internal to the rule group."
   default     = []
   type = list(object({
     name          = string
@@ -321,6 +321,12 @@ variable "country_count_rules" {
   # ]
 }
 
+variable "country_count_rules_priority" {
+  description = "Priority of the country_count_rules rule group rule in the WAF ACL. Must not conflict with any other rule priority."
+  type        = number
+  default     = 90
+}
+
 variable "shield_mitigation" {
   description = "Reference the Shield Advanced automatic mitigation rule group in the WAF ACL. AWS Shield Advanced creates and manages this rule group when automatic application layer DDoS mitigation is enabled on the protected resource — this variable lets you explicitly control its priority rather than letting Shield place it automatically. rule_group_arn must be provided when enabled; it is available after Shield has created the group. Priority defaults to 10,000,000, the value AWS assigns so that the Shield rule runs after all your own rules. Do not use priority 10,000,000 for any other rule. See https://docs.aws.amazon.com/waf/latest/developerguide/ddos-automatic-app-layer-response-rg.html"
   type = object({
@@ -333,10 +339,4 @@ variable "shield_mitigation" {
     condition     = !var.shield_mitigation.enabled || var.shield_mitigation.rule_group_arn != null
     error_message = "var.shield_mitigation.rule_group_arn must be set when shield_mitigation.enabled is true."
   }
-}
-
-variable "country_count_rules_priority" {
-  description = "Priority of the country_count_rules rule group rule in the WAF ACL. Must not conflict with any other rule priority."
-  type        = number
-  default     = 90
 }
