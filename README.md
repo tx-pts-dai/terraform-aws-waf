@@ -8,24 +8,77 @@ This module create the AWS WAF Web ACLs and AWS WAF IP sets necessary to protect
 
 It's designed to propose the following rules:
 
-|Priority|Rule Name|Notes|
-|----------|----------|------|
-|0 | block_based_on_headers | |
-|1 | whitelist_group | Whitelisting bots by downloading IP lists on apply based on var.google_whitelist_config, var.parsely_whitelist_config, `var.k6_whitelist_config` configs. Additionally whitelisting on custom IP lists defined in `var.ip_whitelisting`|
-|2 | limit_search_requests_by_countries |Rate limit the requests done to path `/search` by country|
-|3-10 | block_uri_path_string | |
-|11-20 | block_articles | |
-|21-30 | block_regex_pattern | |
-|31-41 free | Free priority range for additional rules | |
-|42 | Rate_limit_everything_apart_from_CH | This rule is meant to be a failsafe switch in case of attack. Change "count" to "block" in the console if you are under attack and want to rate limit to a low number of requests every country except Switzerland |
-|43 | count_requests_from_ch | |
-|44 | whitelist_based_on_headers | |
-|45-49 | free | Free priority range for additional rules |
-|50-59 | AWS Managed rule groups | Each group could contain multiple labels, please refer to the [doc](https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-list.html)|
-|60 | AWS managed rule labels rate limit | For a list of labels is possible to define an action: block, captcha or challenge. In all cases is possible to define a rate limit or directly apply the action |
-|70-79 | country_rates | Geographical rules|
-|80 | everybody_else_config | The blocking limit for all country_codes which are not covered by the country_rates rule|
-|90 | country_count_rules | |
+| Priority (default) | Rule Name | Notes |
+|---|---|---|
+| `var.blocked_headers.priority` (0) | block_based_on_headers | |
+| `var.whitelist_group_priority` (1) | whitelist_group | Whitelists bots by downloading IP lists on apply based on `var.google_whitelist_config`, `var.parsely_whitelist_config`, `var.k6_whitelist_config`. Also whitelists custom IP lists defined in `var.ip_whitelisting` |
+| `var.limit_search_requests_by_countries.priority` (2) | limit_search_requests_by_countries | Rate limits requests to path `/search` by country |
+| defined in `var.block_uri_path_string[*].priority` | block_uri_path_string | |
+| defined in `var.block_articles[*].priority` | block_articles | |
+| defined in `var.block_regex_pattern[*].priority` | block_regex_pattern | |
+| `var.rate_limit_failsafe_priority` (42) | Rate_limit_everything_apart_from_CH | Failsafe switch in case of attack. Change "count" to "block" in the console to rate limit all countries except Switzerland |
+| `var.count_requests_from_ch.priority` (43) | count_requests_from_ch | |
+| `var.whitelisted_headers.priority` (44) | whitelist_based_on_headers | |
+| defined in `var.aws_managed_rule_groups[*].priority` | AWS Managed rule groups | Each group counts and labels requests; labels can then be acted on by the aws_managed_rule_labels rule. Refer to the [AWS docs](https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-list.html). Not applicable for `waf_scope = REGIONAL` |
+| `var.aws_managed_rule_labels_priority` (60) | AWS managed rule labels rate limit | For each label a configurable action can be applied: block, captcha, or challenge — with optional rate limiting |
+| defined in `var.country_rates[*].priority` | country_rates | Geographical rate limit rules, deployed as chunked rule groups (see below) |
+| `var.everybody_else_config.priority` (80) | everybody_else_config | Rate limit for all country codes not covered by `country_rates`. Set `limit = 0` to disable |
+| `var.country_count_rules_priority` (90) | country_count_rules | Rule group that counts requests from specific countries |
+| `var.shield_mitigation.priority` (10,000,000) | ShieldMitigationRuleGroup | AWS Shield Advanced automatic mitigation rule group (see below). Only deployed when `var.shield_mitigation.enabled = true` |
+
+## Country rates — chunked rule groups
+
+The `country_rates` rules are deployed inside WAF rule groups rather than directly in the Web ACL. Because each WAF rule group has a fixed capacity, the module automatically splits `var.country_rates` into chunks of 4 and creates one rule group per chunk (`country_rate_rules_0`, `country_rate_rules_1`, …). This allows you to define an unlimited number of country rate rules without hitting WAF capacity limits.
+
+Each entry in `var.country_rates` maps to one rate-based rule inside the appropriate chunk group. The `priority` field is scoped to the rule group (not the Web ACL), so priorities only need to be unique within `var.country_rates` itself.
+
+## AWS Shield Advanced integration
+
+When [AWS Shield Advanced automatic application layer DDoS mitigation](https://docs.aws.amazon.com/waf/latest/developerguide/ddos-automatic-app-layer-response-rg.html) is enabled on a protected resource, Shield creates and manages a dedicated WAF rule group. This module can reference that rule group via `var.shield_mitigation`:
+
+```hcl
+shield_mitigation = {
+  enabled        = true
+  rule_group_arn = "<arn-provided-by-shield>"  # available after Shield has created the group
+  priority       = 10000000                    # default — runs after all your own rules
+  action         = "count"                     # default — observe only; set to "none" to let Shield block
+}
+```
+
+- `rule_group_arn` is required when `enabled = true`; Shield creates and exposes it once automatic mitigation is activated on the resource.
+- `action` controls the WAF `override_action` applied to the Shield rule group:
+  - `"count"` (default) — all requests are counted but never blocked by this rule group. Use this to observe Shield's detections without impact.
+  - `"none"` — the rule group's own actions apply, meaning Shield will block traffic it identifies as a DDoS attack. Switch to this when you are under active attack and have validated Shield's detections.
+- The default priority `10,000,000` is the value AWS itself assigns to Shield rules so they evaluate after all your own rules. Do not use this priority for any other rule.
+- If you have engaged the AWS Shield Response Team (SRT), they may add temporary rules at **low priority numbers** during an active DDoS event. Leave headroom at the low end of your priority range so the SRT has room to insert rules without conflicts.
+
+### Finding the rule group ARN
+
+The ARN is only available after Shield has created the rule group, which happens once automatic mitigation is enabled on the protected resource. You can find it in:
+
+- **AWS Console** — Shield Advanced → Protected resources → select your resource → "Automatic application layer DDoS mitigation" section.
+- **AWS CLI:**
+  ```bash
+  aws wafv2 list-rule-groups --scope CLOUDFRONT --region us-east-1
+  ```
+  Look for a rule group named `ShieldMitigationRuleGroup_<account-id>_<resource-id>`.
+- **Terraform data source** — to avoid hardcoding the ARN:
+  ```hcl
+  data "aws_wafv2_rule_group" "shield" {
+    name  = "ShieldMitigationRuleGroup_<account-id>_<resource-id>"
+    scope = "CLOUDFRONT"
+  }
+
+  shield_mitigation = {
+    enabled        = true
+    rule_group_arn = data.aws_wafv2_rule_group.shield.arn
+  }
+  ```
+
+The typical workflow is:
+1. Enable Shield Advanced automatic mitigation on the resource (via console or using `aws_shield_application_layer_automatic_response` in Terraform).
+2. Wait for Shield to create the rule group.
+3. Pass the ARN to this module via `var.shield_mitigation.rule_group_arn`.
 
 ## Waf logging
 
@@ -217,7 +270,7 @@ No modules.
 | <a name="input_logo_path"></a> [logo\_path](#input\_logo\_path) | Company logo path (for 429 pages) | `string` | `""` | no |
 | <a name="input_logs_bucket_name_override"></a> [logs\_bucket\_name\_override](#input\_logs\_bucket\_name\_override) | Override the default bucket name for waf logs. Default name: `aws-waf-logs-<lower(var.waf_scope)>-<data.aws_caller_identity.current.account_id>` | `string` | `null` | no |
 | <a name="input_rate_limit_failsafe_priority"></a> [rate\_limit\_failsafe\_priority](#input\_rate\_limit\_failsafe\_priority) | Priority of the rate\_limit\_everything\_apart\_from\_CH failsafe rule in the WAF ACL. Must not conflict with any other rule priority. | `number` | `42` | no |
-| <a name="input_shield_mitigation"></a> [shield\_mitigation](#input\_shield\_mitigation) | Reference the Shield Advanced automatic mitigation rule group in the WAF ACL. AWS Shield Advanced creates and manages this rule group when automatic application layer DDoS mitigation is enabled on the protected resource — this variable lets you explicitly control its priority rather than letting Shield place it automatically. rule\_group\_arn must be provided when enabled; it is available after Shield has created the group. Priority defaults to 10,000,000, the value AWS assigns so that the Shield rule runs after all your own rules. Do not use priority 10,000,000 for any other rule. See https://docs.aws.amazon.com/waf/latest/developerguide/ddos-automatic-app-layer-response-rg.html | <pre>object({<br/>    enabled        = optional(bool, false)<br/>    priority       = optional(number, 10000000)<br/>    rule_group_arn = optional(string, null)<br/>  })</pre> | `{}` | no |
+| <a name="input_shield_mitigation"></a> [shield\_mitigation](#input\_shield\_mitigation) | Reference the Shield Advanced automatic mitigation rule group in the WAF ACL. AWS Shield Advanced creates and manages this rule group when automatic application layer DDoS mitigation is enabled on the protected resource — this variable lets you explicitly control its priority rather than letting Shield place it automatically. rule\_group\_arn must be provided when enabled; it is available after Shield has created the group. Priority defaults to 10,000,000, the value AWS assigns so that the Shield rule runs after all your own rules. Do not use priority 10,000,000 for any other rule. See https://docs.aws.amazon.com/waf/latest/developerguide/ddos-automatic-app-layer-response-rg.html | <pre>object({<br/>    enabled        = optional(bool, false)<br/>    priority       = optional(number, 10000000)<br/>    rule_group_arn = optional(string, null)<br/>    action         = optional(string, "count") # possible values: count (observe only), none (use rule group's own actions — blocks when Shield detects an attack)<br/>  })</pre> | `{}` | no |
 | <a name="input_waf_logs_retention"></a> [waf\_logs\_retention](#input\_waf\_logs\_retention) | Retention time (in days) of waf logs | `number` | `7` | no |
 | <a name="input_waf_name"></a> [waf\_name](#input\_waf\_name) | The name for WAF | `string` | `"cloudfront-waf"` | no |
 | <a name="input_waf_scope"></a> [waf\_scope](#input\_waf\_scope) | The scope of the deployed waf. Available options [CLOUDFRONT,REGIONAL] | `string` | `"CLOUDFRONT"` | no |

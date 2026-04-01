@@ -333,6 +333,7 @@ variable "shield_mitigation" {
     enabled        = optional(bool, false)
     priority       = optional(number, 10000000)
     rule_group_arn = optional(string, null)
+    action         = optional(string, "count") # possible values: count (observe only), none (use rule group's own actions — blocks when Shield detects an attack)
   })
   default = {}
   validation {

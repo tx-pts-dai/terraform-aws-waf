@@ -623,7 +623,14 @@ resource "aws_wafv2_web_acl" "waf" {
       name     = "${var.waf_name}_ShieldMitigationRuleGroup"
       priority = var.shield_mitigation.priority
       override_action {
-        none {}
+        dynamic "count" {
+          for_each = var.shield_mitigation.action == "count" ? [1] : []
+          content {}
+        }
+        dynamic "none" {
+          for_each = var.shield_mitigation.action == "none" ? [1] : []
+          content {}
+        }
       }
       statement {
         rule_group_reference_statement {
