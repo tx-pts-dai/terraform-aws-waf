@@ -34,7 +34,7 @@ Each entry in `var.country_rates` maps to one rate-based rule inside the appropr
 
 ## AWS Shield Advanced integration
 
-When [AWS Shield Advanced automatic application layer DDoS mitigation](https://docs.aws.amazon.com/waf/latest/developerguide/ddos-automatic-app-layer-response-rg.html) is enabled on a protected resource, Shield creates and manages a dedicated WAF rule group. This module can reference that rule group via `var.shield_mitigation`:
+When [AWS Shield Advanced automatic application layer DDoS mitigation](https://docs.aws.amazon.com/waf/latest/developerguide/ddos-automatic-app-layer-response-rg.html) is enabled on a protected resource, Shield creates and manages a **single WAF rule group per Web ACL**. Even if multiple resources (e.g. multiple CloudFront distributions) share the same ACL and all have automatic mitigation enabled, Shield still creates only one rule group for that ACL. This module references that rule group via `var.shield_mitigation`:
 
 ```hcl
 shield_mitigation = {
@@ -45,27 +45,39 @@ shield_mitigation = {
 }
 ```
 
-- `rule_group_arn` is required when `enabled = true`; Shield creates and exposes it once automatic mitigation is activated on the resource.
+- `rule_group_arn` is required when `enabled = true`; Shield creates it once automatic mitigation is activated on any resource associated with this ACL.
 - `action` controls the WAF `override_action` applied to the Shield rule group:
   - `"count"` (default) — all requests are counted but never blocked by this rule group. Use this to observe Shield's detections without impact.
   - `"none"` — the rule group's own actions apply, meaning Shield will block traffic it identifies as a DDoS attack. Switch to this when you are under active attack and have validated Shield's detections.
 - The default priority `10,000,000` is the value AWS itself assigns to Shield rules so they evaluate after all your own rules. Do not use this priority for any other rule.
 - If you have engaged the AWS Shield Response Team (SRT), they may add temporary rules at **low priority numbers** during an active DDoS event. Leave headroom at the low end of your priority range so the SRT has room to insert rules without conflicts.
 
+### Enabling automatic mitigation per resource
+
+`aws_shield_application_layer_automatic_response` is a **per-resource** Terraform resource — it must be declared for each CloudFront distribution or ALB you want to protect, in the stack that manages those resources (not in this module). This module only needs to know the resulting rule group ARN.
+
+```hcl
+# In your service/distribution stack — one per protected resource
+resource "aws_shield_application_layer_automatic_response" "this" {
+  resource_arn = aws_cloudfront_distribution.this.arn
+  action { count {} } # start with count; switch to block when confident
+}
+```
+
 ### Finding the rule group ARN
 
-The ARN is only available after Shield has created the rule group, which happens once automatic mitigation is enabled on the protected resource. You can find it in:
+The ARN is only available after Shield has created the rule group. You can find it via:
 
 - **AWS Console** — Shield Advanced → Protected resources → select your resource → "Automatic application layer DDoS mitigation" section.
 - **AWS CLI:**
   ```bash
   aws wafv2 list-rule-groups --scope CLOUDFRONT --region us-east-1
   ```
-  Look for a rule group named `ShieldMitigationRuleGroup_<account-id>_<resource-id>`.
+  Look for a rule group named `ShieldMitigationRuleGroup_<account-id>_<web-acl-id>_<uuid>`.
 - **Terraform data source** — to avoid hardcoding the ARN:
   ```hcl
   data "aws_wafv2_rule_group" "shield" {
-    name  = "ShieldMitigationRuleGroup_<account-id>_<resource-id>"
+    name  = "ShieldMitigationRuleGroup_<account-id>_<web-acl-id>_<uuid>"
     scope = "CLOUDFRONT"
   }
 
@@ -75,10 +87,13 @@ The ARN is only available after Shield has created the rule group, which happens
   }
   ```
 
+> **Important:** Shield automatically adds the rule group to your ACL when mitigation is first enabled. If you run `terraform apply` before declaring `shield_mitigation`, Terraform will remove the Shield rule group from the ACL. Always add the ARN to your config before the next apply.
+
 The typical workflow is:
-1. Enable Shield Advanced automatic mitigation on the resource (via console or using `aws_shield_application_layer_automatic_response` in Terraform).
-2. Wait for Shield to create the rule group.
-3. Pass the ARN to this module via `var.shield_mitigation.rule_group_arn`.
+1. Declare `aws_shield_application_layer_automatic_response` for each protected resource in the service stack and apply.
+2. Shield creates the rule group and adds it to the ACL automatically.
+3. Retrieve the ARN (console, CLI, or data source) and add it to `var.shield_mitigation` in this module.
+4. Run `terraform apply` — Terraform now manages the rule group and will no longer remove it.
 
 ## Waf logging
 

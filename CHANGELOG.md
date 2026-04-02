@@ -1,3 +1,117 @@
+# Changelog
+
+## [8.0.0]
+
+This version introduces breaking changes to several variables to allow configurable WAF ACL priorities, removes built-in bot IP fetching in favour of the `ip_list_fetcher` submodule, and adds AWS Shield Advanced integration. **All users must update their Terraform configurations** when upgrading to this version.
+
+### Breaking changes
+
+#### `everybody_else_limit` renamed to `everybody_else_config` — type changed
+
+The variable has been renamed and its type changed from a plain `number` to an object, allowing the WAF ACL priority to be configured independently of the rate limit.
+
+```hcl
+# Before
+everybody_else_limit = 400
+
+# After
+everybody_else_config = { limit = 400 }
+# Optionally set priority (default 80):
+everybody_else_config = { limit = 400, priority = 80 }
+```
+
+#### `blocked_headers` type changed
+
+The variable type changed from a flat `list(object)` to an `object` with a `rules` field, allowing the WAF ACL priority to be set independently.
+
+```hcl
+# Before
+blocked_headers = [
+  { header = "host", value = "example.cloudfront.net" }
+]
+
+# After
+blocked_headers = {
+  rules = [
+    { header = "host", value = "example.cloudfront.net" }
+  ]
+  # Optionally set priority (default 0):
+  # priority = 0
+}
+```
+
+#### `count_requests_from_ch` type changed
+
+The variable type changed from `bool` to an object, allowing the WAF ACL priority to be configured.
+
+```hcl
+# Before
+count_requests_from_ch = false
+
+# After
+count_requests_from_ch = { enabled = false }
+# Optionally set priority (default 43):
+count_requests_from_ch = { enabled = false, priority = 43 }
+```
+
+#### `google_whitelist_config`, `parsely_whitelist_config`, `k6_whitelist_config` removed
+
+The module no longer fetches bot IP ranges internally. Use the `ip_list_fetcher` submodule to fetch them externally and pass them via `ip_whitelisting`.
+
+```hcl
+# Before
+google_whitelist_config = {
+  enable        = true
+  insert_header = { "set-premium" = "true" }
+}
+
+# After
+module "googlebot_ips" {
+  source = "tx-pts-dai/waf/aws//modules/ip_list_fetcher"
+  urls   = ["https://developers.google.com/search/apis/ipranges/googlebot.json"]
+}
+
+ip_whitelisting = {
+  googlebot = {
+    ips                = module.googlebot_ips.ipv4
+    ip_address_version = "IPV4"
+    priority           = 10
+    insert_header      = { "set-premium" = "true" }
+  }
+}
+```
+
+### New features
+
+#### AWS Shield Advanced integration (`shield_mitigation`)
+
+The module can now reference the AWS Shield Advanced automatic mitigation rule group via `var.shield_mitigation`. Key points:
+
+- Shield creates **one rule group per WAF ACL**, regardless of how many resources share that ACL or have automatic mitigation enabled.
+- `aws_shield_application_layer_automatic_response` is a per-resource concern and belongs in the service stack — not in this module.
+- The default `action` is `"count"` (observe only); set to `"none"` to let Shield block during an active attack.
+- Shield automatically adds the rule group to the ACL when first enabled. Always add the ARN to `var.shield_mitigation` before the next `terraform apply`, otherwise Terraform will remove the Shield rule group from the ACL.
+
+```hcl
+shield_mitigation = {
+  enabled        = true
+  rule_group_arn = "<arn-provided-by-shield>"
+  action         = "count" # change to "none" to enable blocking
+}
+```
+
+See the README for full details on finding the ARN and the recommended workflow.
+
+#### Configurable priorities for `everybody_else_config`, `blocked_headers`, `count_requests_from_ch`
+
+All three variables now accept an optional `priority` field, giving callers full control over WAF ACL rule ordering without needing to touch the module internals.
+
+#### `country_rates` — unlimited rules via chunked rule groups
+
+`country_rates` rules are now deployed inside WAF rule groups, automatically split into chunks of 4. This removes the previous limit on the number of country rate rules. Priorities in `var.country_rates` are scoped to the rule group, not the Web ACL.
+
+---
+
 # 📣 Major Update Changelog (v7.0.0)
 
 ## ⚠️ **Breaking Change: Refactor of IP Whitelisting Variables**
