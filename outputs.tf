@@ -8,15 +8,6 @@ output "web_acl_arn" {
   description = "Web ACL arn"
 }
 
-output "google_bots" {
-  value = concat(
-    [for ip in local.google_bots_ipv4 : ip if ip != null],
-    [for ip in local.google_bots_ipv6 : ip if ip != null]
-  )
-  description = "List of Google bots whitelisted"
-}
-
-
 output "logs_bucket_name" {
   value       = var.deploy_logs ? aws_s3_bucket.logs[0].id : null
   description = "Logs bucket name"

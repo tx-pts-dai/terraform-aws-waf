@@ -1,21 +1,3 @@
-## Priorities:
-# 0: block_based_on_headers
-# 1: whitelist_group
-# 2: limit_search_requests_by_countries
-# 3-10: block_uri_path_string
-# 11-20: block_articles
-# 21-30: block_regex_pattern
-# 32-41 free
-# 42: Rate_limit_everything_apart_from_CH
-# 43: count_requests_from_ch
-# 44: whitelist_based_on_headers
-# 45-49: free
-# 50-59: AWS Managed rule groups (these are the ones that only count and label requests)
-# 60: AWS managed rule labels rate limit
-# 70-79: country_rates
-# 80: everybody_else_limit
-# 90: country_count_rules
-
 locals {
   everybody_else_exclude_country_codes = distinct(flatten([ # find all the country_codes mentioned in our rules
     for rules in var.country_rates : [rules.country_codes]
@@ -26,38 +8,6 @@ locals {
     local.country_rate_chunks
   )
 
-  google_whitelist_ipv6 = {
-    ips                = local.google_bots_ipv6
-    ip_address_version = "IPV6"
-    insert_header      = var.google_whitelist_config.insert_header
-    priority           = 1
-  }
-  google_whitelist_ipv4 = {
-    ips                = local.google_bots_ipv4
-    ip_address_version = "IPV4"
-    insert_header      = var.google_whitelist_config.insert_header
-    priority           = 2
-  }
-  parsely_whitelist_ipv4 = {
-    ips                = local.parsely_crawlers
-    ip_address_version = "IPV4"
-    insert_header      = var.parsely_whitelist_config.insert_header
-    priority           = 3
-  }
-  k6_whitelist_ipv4 = {
-    ips                = local.k6_load_generators_ipv4
-    ip_address_version = "IPV4"
-    insert_header      = var.k6_whitelist_config.insert_header
-    priority           = 4
-  }
-
-  group_whitelist = merge(
-    var.google_whitelist_config.enable ? { google_ipv4 = local.google_whitelist_ipv4 } : {},
-    var.google_whitelist_config.enable ? { google_ipv6 = local.google_whitelist_ipv6 } : {},
-    var.parsely_whitelist_config.enable ? { parsely_ipv4 = local.parsely_whitelist_ipv4 } : {},
-    var.k6_whitelist_config.enable ? { k6_ipv4 = local.k6_whitelist_ipv4 } : {},
-    var.ip_whitelisting
-  )
 
   rate_limit_response_key = "rate-limit-error"
   custom_response_body    = <<MULTILINE
@@ -111,17 +61,17 @@ resource "aws_wafv2_web_acl" "waf" {
     for_each = var.blocked_headers != null ? [1] : []
     content {
       name     = "${var.waf_name}_block_based_on_headers"
-      priority = 0
+      priority = var.blocked_headers.priority
       action {
         block {}
       }
       dynamic "statement" {
-        # or_statement needs 2 arguments so handle the case when only one article is in the rule
-        for_each = length(var.blocked_headers) > 1 ? [1] : [] # if more than one element use or_statement
+        # multiple statements - or_statement handles the case of more than 2 headers in the rule
+        for_each = length(var.blocked_headers.rules) > 1 ? [1] : []
         content {
           or_statement {
             dynamic "statement" {
-              for_each = var.blocked_headers
+              for_each = var.blocked_headers.rules
               content {
                 byte_match_statement {
                   positional_constraint = statement.value.string_match_type
@@ -142,8 +92,8 @@ resource "aws_wafv2_web_acl" "waf" {
         }
       }
       dynamic "statement" {
-        # or_statement needs 2 arguments so handle the case when only one article is in the rule
-        for_each = length(var.blocked_headers) == 1 ? var.blocked_headers : [] # if more than one element use or_statement
+        # single statement - only one header is in the rule
+        for_each = length(var.blocked_headers.rules) == 1 ? var.blocked_headers.rules : []
         content {
           byte_match_statement {
             positional_constraint = statement.value.string_match_type
@@ -169,10 +119,10 @@ resource "aws_wafv2_web_acl" "waf" {
   }
 
   dynamic "rule" {
-    for_each = length(local.group_whitelist) == 0 ? [] : [1]
+    for_each = length(var.ip_whitelisting) == 0 ? [] : [1]
     content {
       name     = "${var.waf_name}_whitelist_group"
-      priority = 1
+      priority = var.whitelist_group_priority
       override_action {
         none {}
       }
@@ -193,7 +143,7 @@ resource "aws_wafv2_web_acl" "waf" {
     for_each = length(var.limit_search_requests_by_countries.country_codes) > 0 ? [1] : []
     content {
       name     = "${var.waf_name}_limit_search_requests_by_countries"
-      priority = 2
+      priority = var.limit_search_requests_by_countries.priority
       action {
         block {
           custom_response {
@@ -306,8 +256,8 @@ resource "aws_wafv2_web_acl" "waf" {
             }
           }
           dynamic "statement" {
-            # or_statement needs 2 arguments so handle the case when only one article is in the rule
-            for_each = length(rule.value.articles) > 1 ? [1] : [] # if more than one element use or_statement
+            # multiple articles - or_statement handles the case of more than one article in the rule
+            for_each = length(rule.value.articles) > 1 ? [1] : []
             content {
               or_statement {
                 dynamic "statement" {
@@ -330,8 +280,8 @@ resource "aws_wafv2_web_acl" "waf" {
             }
           }
           dynamic "statement" {
-            # or_statement needs 2 arguments so handle the case when only one article is in the rule
-            for_each = length(rule.value.articles) == 1 ? rule.value.articles : [] # if just one element skip or_statement
+            # single article - only one article is in the rule
+            for_each = length(rule.value.articles) == 1 ? rule.value.articles : []
             content {
               byte_match_statement {
                 positional_constraint = "ENDS_WITH"
@@ -409,7 +359,7 @@ resource "aws_wafv2_web_acl" "waf" {
   # rate limit to a low number of requests every country except Switzerland
   rule {
     name     = "${var.waf_name}_rate_limit_everything_apart_from_CH"
-    priority = 42
+    priority = var.rate_limit_failsafe_priority
     action {
       count {}
     }
@@ -443,10 +393,10 @@ resource "aws_wafv2_web_acl" "waf" {
   }
 
   dynamic "rule" {
-    for_each = var.count_requests_from_ch ? [1] : []
+    for_each = var.count_requests_from_ch.enabled ? [1] : []
     content {
       name     = "${var.waf_name}_Switzerland"
-      priority = 43
+      priority = var.count_requests_from_ch.priority
       action {
         count {}
       }
@@ -474,13 +424,13 @@ resource "aws_wafv2_web_acl" "waf" {
     for_each = var.whitelisted_headers != null ? [1] : []
     content {
       name     = "${var.waf_name}_Whitelist_based_on_headers"
-      priority = 44
+      priority = var.whitelisted_headers.priority
       action {
         allow {}
       }
       dynamic "statement" {
-        # or_statement needs 2 arguments so handle the case when only one article is in the rule
-        for_each = length(var.whitelisted_headers.headers) > 1 ? [1] : [] # if more than one element use or_statement
+        # multiple headers - or_statement handles the case of more than one header in the rule
+        for_each = length(var.whitelisted_headers.headers) > 1 ? [1] : []
         content {
           or_statement {
             dynamic "statement" {
@@ -505,8 +455,8 @@ resource "aws_wafv2_web_acl" "waf" {
         }
       }
       dynamic "statement" {
-        # or_statement needs 2 arguments so handle the case when only one article is in the rule
-        for_each = length(var.whitelisted_headers.headers) == 1 ? var.whitelisted_headers.headers : {} # if more than one element use or_statement
+        # single header - only one header is in the rule
+        for_each = length(var.whitelisted_headers.headers) == 1 ? var.whitelisted_headers.headers : {}
         content {
           byte_match_statement {
             positional_constraint = var.whitelisted_headers.string_match_type
@@ -554,10 +504,10 @@ resource "aws_wafv2_web_acl" "waf" {
   }
 
   dynamic "rule" {
-    for_each = var.everybody_else_limit == 0 ? [] : [1]
+    for_each = var.everybody_else_config.limit == 0 ? [] : [1]
     content {
       name     = "${var.waf_name}_Everybody_else"
-      priority = 80
+      priority = var.everybody_else_config.priority
       action {
         block {
           custom_response {
@@ -569,7 +519,7 @@ resource "aws_wafv2_web_acl" "waf" {
       statement {
         rate_based_statement {
           aggregate_key_type = "IP"
-          limit              = var.everybody_else_limit
+          limit              = var.everybody_else_config.limit
 
           scope_down_statement {
             not_statement {
@@ -599,7 +549,7 @@ resource "aws_wafv2_web_acl" "waf" {
 
   rule {
     name     = "${var.waf_name}_aws_managed_rule_labels"
-    priority = 60
+    priority = var.aws_managed_rule_labels_priority
 
     override_action {
       none {}
@@ -643,7 +593,7 @@ resource "aws_wafv2_web_acl" "waf" {
     for_each = length(var.country_count_rules) > 0 ? [1] : []
     content {
       name     = "${var.waf_name}_country_count_rules"
-      priority = 90
+      priority = var.country_count_rules_priority
       override_action {
         none {}
       }
@@ -655,6 +605,41 @@ resource "aws_wafv2_web_acl" "waf" {
       visibility_config {
         cloudwatch_metrics_enabled = true
         metric_name                = "${var.waf_name}_country_count_rules"
+        sampled_requests_enabled   = true
+      }
+    }
+  }
+
+  # Priority 10,000,000 is reserved for the AWS Shield Advanced automatic mitigation rule group.
+  # Do not assign this priority to any other rule.
+  #
+  # Additionally, if you have engaged the AWS Shield Response Team (SRT), they may add rules
+  # directly to this web ACL during an active DDoS event (with your approval). The SRT will
+  # typically place their rules at low priority numbers so they are evaluated before your own
+  # rules. Leave some headroom at the low end of your priority range for this purpose.
+  dynamic "rule" {
+    for_each = var.shield_mitigation.enabled ? [1] : []
+    content {
+      name     = "${var.waf_name}_ShieldMitigationRuleGroup"
+      priority = var.shield_mitigation.priority
+      override_action {
+        dynamic "count" {
+          for_each = var.shield_mitigation.action == "count" ? [1] : []
+          content {}
+        }
+        dynamic "none" {
+          for_each = var.shield_mitigation.action == "none" ? [1] : []
+          content {}
+        }
+      }
+      statement {
+        rule_group_reference_statement {
+          arn = var.shield_mitigation.rule_group_arn
+        }
+      }
+      visibility_config {
+        cloudwatch_metrics_enabled = true
+        metric_name                = "${var.waf_name}_ShieldMitigationRuleGroup"
         sampled_requests_enabled   = true
       }
     }
@@ -797,9 +782,8 @@ resource "aws_wafv2_rule_group" "aws_managed_rule_labels" {
       # }
       statement {
         dynamic "or_statement" {
-          # or_statement needs 2 arguments so handle the case when only one label is in the rule
+          # multiple labels - or_statement handles the case of more than one label in the rule (only when rate limiting is disabled)
           for_each = length(rule.value.labels) > 1 && !rule.value.enable_rate_limiting ? [1] : []
-          # if rate limiting is not enabled and more than one element use or_statement
           content {
             dynamic "statement" {
               for_each = rule.value.labels
@@ -813,9 +797,8 @@ resource "aws_wafv2_rule_group" "aws_managed_rule_labels" {
           }
         }
         dynamic "label_match_statement" {
-          # or_statement needs 2 arguments so handle the case when only one label is in the rule
+          # single label - only one label in the rule (only when rate limiting is disabled)
           for_each = length(rule.value.labels) == 1 && !rule.value.enable_rate_limiting ? rule.value.labels : []
-          # if rate limiting is not enabled and one element skip or_statement
           content {
             key   = label_match_statement.value
             scope = "LABEL"
@@ -827,8 +810,8 @@ resource "aws_wafv2_rule_group" "aws_managed_rule_labels" {
             aggregate_key_type = "IP"
             limit              = rule.value.limit
             dynamic "scope_down_statement" {
-              # or_statement needs 2 arguments so handle the case when only one label is in the rule
-              for_each = length(rule.value.labels) > 1 ? [1] : [] # if more than one element use or_statement
+              # multiple labels - or_statement handles the case of more than one label in the rule
+              for_each = length(rule.value.labels) > 1 ? [1] : []
               content {
                 or_statement {
                   dynamic "statement" {
@@ -844,8 +827,8 @@ resource "aws_wafv2_rule_group" "aws_managed_rule_labels" {
               }
             }
             dynamic "scope_down_statement" {
-              # or_statement needs 2 arguments so handle the case when only one label is in the rule
-              for_each = length(rule.value.labels) == 1 ? rule.value.labels : [] # if one element skip or_statement
+              # single label - only one label in the rule
+              for_each = length(rule.value.labels) == 1 ? rule.value.labels : []
               content {
                 label_match_statement {
                   scope = "LABEL"
@@ -921,7 +904,7 @@ resource "aws_wafv2_rule_group" "country_count_rules" {
 }
 
 resource "aws_wafv2_ip_set" "whitelist" {
-  for_each           = local.group_whitelist
+  for_each           = var.ip_whitelisting
   name               = "${var.waf_name}_whitelist_${each.key}"
   scope              = var.waf_scope
   ip_address_version = each.value.ip_address_version
@@ -936,7 +919,7 @@ resource "aws_wafv2_rule_group" "whitelist" {
   scope    = var.waf_scope
   capacity = 100
   dynamic "rule" {
-    for_each = local.group_whitelist
+    for_each = var.ip_whitelisting
     content {
       name     = "${var.waf_name}_${rule.key}"
       priority = rule.value.priority

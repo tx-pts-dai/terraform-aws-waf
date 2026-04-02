@@ -26,66 +26,40 @@ variable "waf_logs_retention" {
   type        = number
 }
 
-variable "google_whitelist_config" {
-  description = "Configuration for whitelisting Googlebot IPs. Set 'whitelist' to false to disable the whitelisting. Doc https://developers.google.com/crawling/docs/crawlers-fetchers/verify-google-requests. The IPs are automatically parsed from the given url. Use 'insert_header' to add custom headers to these requests (the headers will be prefixed automatically with `x-amzn-waf-`)."
-  default     = {}
-  type = object({
-    enable                  = optional(bool, false)
-    url                     = optional(string, "https://developers.google.com/static/crawling/ipranges/common-crawlers.json")
-    insert_header           = optional(map(string), null)
-    http_call_extra_headers = optional(map(string), {})
-  })
-}
-
-variable "parsely_whitelist_config" {
-  description = "Configuration for whitelisting Parse.ly crawler IPs. Set 'whitelist' to false to disable the whitelisting. The IPs are automatically parsed from the given url. Use 'insert_header' to add custom headers to these requests (the headers will be prefixed automatically with `x-amzn-waf-`)."
-  default     = {}
-  type = object({
-    enable                  = optional(bool, false)
-    url                     = optional(string, "https://www.parse.ly/static/data/crawler-ips.json")
-    insert_header           = optional(map(string), null)
-    http_call_extra_headers = optional(map(string), {})
-  })
-}
-
-variable "k6_whitelist_config" {
-  description = "Configuration for whitelisting the K6 load generators IPs. Set 'whitelist' to false to disable the whitelisting. Doc https://k6.io/docs/cloud/cloud-reference/cloud-ips/. The IPs are automatically parsed from the given url. Use 'insert_header' to add custom headers to these requests (the headers will be prefixed automatically with `x-amzn-waf-`)."
-  default     = {}
-  type = object({
-    enable                  = optional(bool, false)
-    url                     = optional(string, "https://ip-ranges.amazonaws.com/ip-ranges.json")
-    insert_header           = optional(map(string), null)
-    http_call_extra_headers = optional(map(string), {})
-  })
-}
-
 ## Variables for WAF Rules
 
 variable "ip_whitelisting" {
-  description = "Map of configurations for whitelisting custom lists of IPs. Use 'insert_header' to add custom headers to these requests (the headers will be prefixed automatically with `x-amzn-waf-`)."
+  description = "Map of configurations for whitelisting IP lists. Populate this using the ip_list_fetcher sub-module or with static CIDRs. Use 'insert_header' to add custom headers to whitelisted requests (headers are prefixed automatically with `x-amzn-waf-`)."
   default     = {}
   type = map(object({
     ips                = list(string)
     ip_address_version = string # possible values: IPV4, IPV6
-    priority           = number # > 10
+    priority           = number
     insert_header      = optional(map(string), null)
   }))
   validation {
     condition = alltrue(
-      [for item in var.ip_whitelisting : item.priority > 10 &&
+      [for item in var.ip_whitelisting :
         (
           item.ip_address_version == "IPV4" || item.ip_address_version == "IPV6") && (
           item.ip_address_version == "IPV6" && alltrue([for ip in item.ips : can(regex("^[0-9a-fA-F:]*/\\d{1,3}", ip))]) ||
           item.ip_address_version == "IPV4" && alltrue([for ip in item.ips : can(regex("^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}/\\d{1,2}", ip))])
       )]
     )
-    error_message = "var.ip_whitelisting.priority must be greater than 10 and var.ip_whitelisting.ip_address_version must be either IPV4 or IPV6 with mask. Example: ['1.1.1.1/16'] for IPV4 and ['2001:db8::/32'] for IPV6"
+    error_message = "var.ip_whitelisting.ip_address_version must be either IPV4 or IPV6 with mask. Example: ['1.1.1.1/16'] for IPV4 and ['2001:db8::/32'] for IPV6"
   }
+}
+
+variable "whitelist_group_priority" {
+  description = "Priority of the whitelist rule group rule in the WAF ACL. Must not conflict with any other rule priority."
+  type        = number
+  default     = 1
 }
 
 variable "whitelisted_headers" {
   description = "Map of header => value to be whitelisted. Set to null to disable the whitelisting"
   type = object({
+    priority          = optional(number, 44)
     headers           = map(string)
     string_match_type = optional(string, "EXACTLY") # possible values: EXACTLY, STARTS_WITH, ENDS_WITH, CONTAINS, CONTAINS_WORD
   })
@@ -93,12 +67,15 @@ variable "whitelisted_headers" {
 }
 
 variable "blocked_headers" {
-  description = "List of objects containing header key, value and string_match_type. Set to null to disable the blocking on headers"
-  type = list(object({
-    header            = string
-    value             = string
-    string_match_type = optional(string, "EXACTLY") # possible values: EXACTLY, STARTS_WITH, ENDS_WITH, CONTAINS, CONTAINS_WORD
-  }))
+  description = "Headers to block on. Set to null to disable. 'rules' is a list of header/value match conditions; 'priority' sets the WAF ACL rule priority."
+  type = object({
+    priority = optional(number, 0)
+    rules = list(object({
+      header            = string
+      value             = string
+      string_match_type = optional(string, "EXACTLY") # possible values: EXACTLY, STARTS_WITH, ENDS_WITH, CONTAINS, CONTAINS_WORD
+    }))
+  })
   default = null
 }
 
@@ -118,10 +95,6 @@ variable "aws_managed_rule_groups" {
       priority = 51
     }
   ]
-  validation {
-    condition     = alltrue([for group in var.aws_managed_rule_groups : group.priority >= 50 && group.priority < 60])
-    error_message = "var.aws_managed_rule_groups.priority must be between 50 and 59. var.aws_managed_rule_groups.override_group_action should be either count or block"
-  }
 }
 
 variable "aws_managed_rule_labels" {
@@ -153,15 +126,24 @@ variable "aws_managed_rule_labels" {
     error_message = "var.aws_managed_rule_labels can have a max length of 4."
   }
   validation {
-    condition     = alltrue([for rule in var.aws_managed_rule_labels : (rule.priority >= 60 && rule.priority < 64) && contains(["count", "block", "captcha", "challenge"], rule.action)])
-    error_message = "var.aws_managed_rule_labels.priority must be between 60 and 63. var.aws_managed_rule_labels.action must be either count, block, captcha or challenge"
+    condition     = alltrue([for rule in var.aws_managed_rule_labels : contains(["count", "block", "captcha", "challenge"], rule.action)])
+    error_message = "var.aws_managed_rule_labels.action must be either count, block, captcha or challenge"
   }
 }
 
+variable "aws_managed_rule_labels_priority" {
+  description = "Priority of the aws_managed_rule_labels rule group rule in the WAF ACL. Must not conflict with any other rule priority."
+  type        = number
+  default     = 60
+}
+
 variable "count_requests_from_ch" {
-  default     = false
-  description = "If true it deploys a rule that counts requests from Switzerland with priority 4"
-  type        = bool
+  description = "If enabled, deploys a rule that counts requests from Switzerland."
+  type = object({
+    enabled  = optional(bool, false)
+    priority = optional(number, 43)
+  })
+  default = {}
 }
 
 variable "country_rates" {
@@ -195,16 +177,21 @@ variable "country_rates" {
   #     priority     = 35
   #   }
   # ]
-  validation {
-    condition     = alltrue([for uri in var.country_rates : uri.priority >= 70 && uri.priority < 80])
-    error_message = "var.country_rates.priority must be between 70 and 79"
-  }
 }
 
-variable "everybody_else_limit" {
-  default     = 0
-  description = "The limit for all country_codes which are not covered by country_rates - not applied if it set to 0"
+variable "everybody_else_config" {
+  description = "Priority and limit for all country_codes not covered by country_rates. Set limit to 0 to disable the rule."
+  type = object({
+    limit    = optional(number, 0)
+    priority = optional(number, 80)
+  })
+  default = {}
+}
+
+variable "rate_limit_failsafe_priority" {
+  description = "Priority of the rate_limit_everything_apart_from_CH failsafe rule in the WAF ACL. Must not conflict with any other rule priority."
   type        = number
+  default     = 42
 }
 
 variable "limit_search_requests_by_countries" {
@@ -214,6 +201,7 @@ variable "limit_search_requests_by_countries" {
   }
   description = "Limit requests on the path /search that comes from the specified list of country_codes. Rule not deployed if list of countries is empty."
   type = object({
+    priority      = optional(number, 2)
     limit         = optional(number, 100)
     country_codes = set(string)
   })
@@ -224,13 +212,13 @@ variable "block_uri_path_string" {
   description = "Allow to block specific strings, defining the positional constraint of the string."
   type = list(object({
     name                  = string
-    priority              = optional(number, 1)
+    priority              = number
     positional_constraint = optional(string, "EXACTLY")
     search_string         = string
   }))
   validation {
-    condition     = alltrue([for uri in var.block_uri_path_string : uri.priority >= 3 && uri.priority < 11 && contains(["EXACTLY", "STARTS_WITH", "ENDS_WITH", "CONTAINS", "CONTAINS_WORD"], uri.positional_constraint)])
-    error_message = "var.block_uri_path_string.priority must be between 3 and 10"
+    condition     = alltrue([for uri in var.block_uri_path_string : contains(["EXACTLY", "STARTS_WITH", "ENDS_WITH", "CONTAINS", "CONTAINS_WORD"], uri.positional_constraint)])
+    error_message = "var.block_uri_path_string.positional_constraint must be one of: EXACTLY, STARTS_WITH, ENDS_WITH, CONTAINS, CONTAINS_WORD"
   }
 }
 
@@ -261,10 +249,6 @@ variable "block_articles" {
   #   },
   #   ...
   # ]
-  validation {
-    condition     = alltrue([for uri in var.block_articles : uri.priority >= 11 && uri.priority < 21])
-    error_message = "var.block_articles.priority must be between 11 and 20"
-  }
 }
 
 variable "block_regex_pattern" {
@@ -285,10 +269,6 @@ variable "block_regex_pattern" {
   #     regex_string = "\\/content\\/(168154293778|199781524264|295880478843|456984065155|521246040231|548039927522|770770342355|850519746098|857984311223|875532264517|892009682269|961874634370)$"
   #   }
   # }
-  validation {
-    condition     = alltrue([for uri in var.block_regex_pattern : uri.priority >= 21 && uri.priority < 31])
-    error_message = "var.block_regex_pattern.priority must be between 21 and 30"
-  }
 }
 
 # LOGS
@@ -317,7 +297,7 @@ variable "logs_bucket_name_override" {
 }
 
 variable "country_count_rules" {
-  description = "Enable the deployment of rules that count the requests from specific countries."
+  description = "Enable the deployment of rules that count the requests from specific countries. The priority defined here is the one internal to the rule group."
   default     = []
   type = list(object({
     name          = string
@@ -339,4 +319,25 @@ variable "country_count_rules" {
   #   },
   #   ...
   # ]
+}
+
+variable "country_count_rules_priority" {
+  description = "Priority of the country_count_rules rule group rule in the WAF ACL. Must not conflict with any other rule priority."
+  type        = number
+  default     = 90
+}
+
+variable "shield_mitigation" {
+  description = "Reference the Shield Advanced automatic mitigation rule group in the WAF ACL. AWS Shield Advanced creates and manages this rule group when automatic application layer DDoS mitigation is enabled on the protected resource — this variable lets you explicitly control its priority rather than letting Shield place it automatically. rule_group_arn must be provided when enabled; it is available after Shield has created the group. Priority defaults to 10,000,000, the value AWS assigns so that the Shield rule runs after all your own rules. Do not use priority 10,000,000 for any other rule. See https://docs.aws.amazon.com/waf/latest/developerguide/ddos-automatic-app-layer-response-rg.html"
+  type = object({
+    enabled        = optional(bool, false)
+    priority       = optional(number, 10000000)
+    rule_group_arn = optional(string, null)
+    action         = optional(string, "count") # possible values: count (observe only), none (use rule group's own actions — blocks when Shield detects an attack)
+  })
+  default = {}
+  validation {
+    condition     = !var.shield_mitigation.enabled || var.shield_mitigation.rule_group_arn != null
+    error_message = "var.shield_mitigation.rule_group_arn must be set when shield_mitigation.enabled is true."
+  }
 }

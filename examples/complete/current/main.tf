@@ -21,18 +21,64 @@ provider "aws" {
   alias  = "us"
 }
 
+locals {
+  google_whitelist_config = {
+    enable        = true
+    url           = "https://developers.google.com/search/apis/ipranges/googlebot.json"
+    insert_header = { "foo" = "bar" }
+  }
+  parsely_whitelist_config = { enable = false }
+  k6_whitelist_config      = { enable = false }
+  ip_whitelisting = {
+    "tx_group" = {
+      ip_address_version = "IPV4"
+      ips = [
+        "120.0.0.0/32",
+      ]
+      priority      = 11
+      insert_header = { "foo" = "bar" }
+    }
+    "tx_group_2" = {
+      ip_address_version = "IPV4"
+      ips = [
+        "120.0.1.0/32",
+      ]
+      priority = 12
+      insert_header = {
+        "foo"           = "bar"
+        "second_header" = "some_value"
+      }
+    }
+    "tx_group_3" = {
+      ip_address_version = "IPV4"
+      ips = [
+        "120.0.2.0/32",
+      ]
+      priority = 13
+    }
+    "tx_group_4" = {
+      ip_address_version = "IPV6"
+      ips = [
+        "2001:db8::/32", # Example IPv6 range
+      ]
+      priority = 14
+    }
+  }
+}
+
 module "waf" {
   source  = "tx-pts-dai/waf/aws"
-  version = "~> 6.0"
+  version = "~> 7.0"
   providers = {
     aws = aws.us
   }
-
-  waf_name           = "waf-module-regression-example"
-  waf_scope          = "CLOUDFRONT"
-  waf_logs_retention = 7
-
-
+  waf_name                 = "waf-module-regression-example"
+  waf_scope                = "CLOUDFRONT"
+  waf_logs_retention       = 7
+  google_whitelist_config  = local.google_whitelist_config
+  parsely_whitelist_config = local.parsely_whitelist_config
+  k6_whitelist_config      = local.k6_whitelist_config
+  ip_whitelisting          = local.ip_whitelisting
   blocked_headers = [
     {
       header            = "host"
@@ -69,20 +115,6 @@ module "waf" {
       priority = 61
     }
   ]
-  country_count_rules = [
-    {
-      name          = "count-CH"
-      limit         = 4000
-      country_codes = ["CH"]
-      priority      = 90
-    },
-    {
-      name          = "count-DE"
-      limit         = 1000
-      country_codes = ["DE"]
-      priority      = 91
-    }
-  ]
   count_requests_from_ch = false
   country_rates = [
     {
@@ -105,6 +137,20 @@ module "waf" {
       priority      = 72
     }
   ]
+  country_count_rules = [
+    {
+      name          = "count-CH"
+      limit         = 4000
+      country_codes = ["CH"]
+      priority      = 90
+    },
+    {
+      name          = "count-DE"
+      limit         = 1000
+      country_codes = ["DE"]
+      priority      = 91
+    }
+  ]
   limit_search_requests_by_countries = {
     limit         = 100
     country_codes = ["CH"]
@@ -118,7 +164,7 @@ module "waf" {
 
 module "waf_parallel" {
   source  = "tx-pts-dai/waf/aws"
-  version = "~> 6.0"
+  version = "~> 7.0"
   providers = {
     aws = aws.us
   }
@@ -127,15 +173,10 @@ module "waf_parallel" {
   waf_scope          = "CLOUDFRONT"
   waf_logs_retention = 7
 
-  enable_google_bots_whitelist      = true
-  google_bots_url                   = "https://developers.google.com/search/apis/ipranges/googlebot.json"
-  enable_parsely_crawlers_whitelist = false
-  parsely_crawlers_url              = "https://www.parse.ly/static/data/crawler-ips.json"
-  enable_k6_whitelist               = false
-  k6_ip_ranges_url                  = "https://ip-ranges.amazonaws.com/ip-ranges.json"
-  whitelisted_ips_v4                = []
-  whitelisted_ips_v6                = []
-
+  google_whitelist_config  = local.google_whitelist_config
+  parsely_whitelist_config = local.parsely_whitelist_config
+  k6_whitelist_config      = local.k6_whitelist_config
+  ip_whitelisting          = local.ip_whitelisting
   whitelisted_headers = {
     headers = {
       "MyCustomHeader"  = "Lighthouse"
@@ -206,12 +247,11 @@ module "waf_parallel" {
     limit         = 100
     country_codes = ["CH"]
   }
-  block_uri_path_string     = []
-  block_articles            = []
-  block_regex_pattern       = {}
-  logs_bucket_name_override = null
-  enable_logging            = true
-
-  alternative_logs_bucket_name = module.waf.logs_bucket_name
+  block_uri_path_string        = []
+  block_articles               = []
+  block_regex_pattern          = {}
+  logs_bucket_name_override    = null
+  enable_logging               = true
   deploy_logs                  = false
+  alternative_logs_bucket_name = module.waf.logs_bucket_name
 }

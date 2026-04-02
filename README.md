@@ -8,24 +8,92 @@ This module create the AWS WAF Web ACLs and AWS WAF IP sets necessary to protect
 
 It's designed to propose the following rules:
 
-|Priority|Rule Name|Notes|
-|----------|----------|------|
-|0 | block_based_on_headers | |
-|1 | whitelist_group | Whitelisting bots by downloading IP lists on apply based on var.google_whitelist_config, var.parsely_whitelist_config, `var.k6_whitelist_config` configs. Additionally whitelisting on custom IP lists defined in `var.ip_whitelisting`|
-|2 | limit_search_requests_by_countries |Rate limit the requests done to path `/search` by country|
-|3-10 | block_uri_path_string | |
-|11-20 | block_articles | |
-|21-30 | block_regex_pattern | |
-|31-41 free | Free priority range for additional rules | |
-|42 | Rate_limit_everything_apart_from_CH | This rule is meant to be a failsafe switch in case of attack. Change "count" to "block" in the console if you are under attack and want to rate limit to a low number of requests every country except Switzerland |
-|43 | count_requests_from_ch | |
-|44 | whitelist_based_on_headers | |
-|45-49 | free | Free priority range for additional rules |
-|50-59 | AWS Managed rule groups | Each group could contain multiple labels, please refer to the [doc](https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-list.html)|
-|60 | AWS managed rule labels rate limit | For a list of labels is possible to define an action: block, captcha or challenge. In all cases is possible to define a rate limit or directly apply the action |
-|70-79 | country_rates | Geographical rules|
-|80 | everybody_else_limit | The blocking limit for all country_codes which are not covered by the country_rates rule|
-|90 | country_count_rules | |
+| Priority (default) | Rule Name | Notes |
+|---|---|---|
+| `var.blocked_headers.priority` (0) | block_based_on_headers | |
+| `var.whitelist_group_priority` (1) | whitelist_group | Whitelists bots by downloading IP lists on apply based on `var.google_whitelist_config`, `var.parsely_whitelist_config`, `var.k6_whitelist_config`. Also whitelists custom IP lists defined in `var.ip_whitelisting` |
+| `var.limit_search_requests_by_countries.priority` (2) | limit_search_requests_by_countries | Rate limits requests to path `/search` by country |
+| defined in `var.block_uri_path_string[*].priority` | block_uri_path_string | |
+| defined in `var.block_articles[*].priority` | block_articles | |
+| defined in `var.block_regex_pattern[*].priority` | block_regex_pattern | |
+| `var.rate_limit_failsafe_priority` (42) | Rate_limit_everything_apart_from_CH | Failsafe switch in case of attack. Change "count" to "block" in the console to rate limit all countries except Switzerland |
+| `var.count_requests_from_ch.priority` (43) | count_requests_from_ch | |
+| `var.whitelisted_headers.priority` (44) | whitelist_based_on_headers | |
+| defined in `var.aws_managed_rule_groups[*].priority` | AWS Managed rule groups | Each group counts and labels requests; labels can then be acted on by the aws_managed_rule_labels rule. Refer to the [AWS docs](https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-list.html). Not applicable for `waf_scope = REGIONAL` |
+| `var.aws_managed_rule_labels_priority` (60) | AWS managed rule labels rate limit | For each label a configurable action can be applied: block, captcha, or challenge — with optional rate limiting |
+| defined in `var.country_rates[*].priority` | country_rates | Geographical rate limit rules, deployed as chunked rule groups (see below) |
+| `var.everybody_else_config.priority` (80) | everybody_else_config | Rate limit for all country codes not covered by `country_rates`. Set `limit = 0` to disable |
+| `var.country_count_rules_priority` (90) | country_count_rules | Rule group that counts requests from specific countries |
+| `var.shield_mitigation.priority` (10,000,000) | ShieldMitigationRuleGroup | AWS Shield Advanced automatic mitigation rule group (see below). Only deployed when `var.shield_mitigation.enabled = true` |
+
+## Country rates — chunked rule groups
+
+The `country_rates` rules are deployed inside WAF rule groups rather than directly in the Web ACL. Because each WAF rule group has a fixed capacity, the module automatically splits `var.country_rates` into chunks of 4 and creates one rule group per chunk (`country_rate_rules_0`, `country_rate_rules_1`, …). This allows you to define an unlimited number of country rate rules without hitting WAF capacity limits.
+
+Each entry in `var.country_rates` maps to one rate-based rule inside the appropriate chunk group. The `priority` field is scoped to the rule group (not the Web ACL), so priorities only need to be unique within `var.country_rates` itself.
+
+## AWS Shield Advanced integration
+
+When [AWS Shield Advanced automatic application layer DDoS mitigation](https://docs.aws.amazon.com/waf/latest/developerguide/ddos-automatic-app-layer-response-rg.html) is enabled on a protected resource, Shield creates and manages a **single WAF rule group per Web ACL**. Even if multiple resources (e.g. multiple CloudFront distributions) share the same ACL and all have automatic mitigation enabled, Shield still creates only one rule group for that ACL. This module references that rule group via `var.shield_mitigation`:
+
+```hcl
+shield_mitigation = {
+  enabled        = true
+  rule_group_arn = "<arn-provided-by-shield>"  # available after Shield has created the group
+  priority       = 10000000                    # default — runs after all your own rules
+  action         = "count"                     # default — observe only; set to "none" to let Shield block
+}
+```
+
+- `rule_group_arn` is required when `enabled = true`; Shield creates it once automatic mitigation is activated on any resource associated with this ACL.
+- `action` controls the WAF `override_action` applied to the Shield rule group:
+  - `"count"` (default) — all requests are counted but never blocked by this rule group. Use this to observe Shield's detections without impact.
+  - `"none"` — the rule group's own actions apply, meaning Shield will block traffic it identifies as a DDoS attack. Switch to this when you are under active attack and have validated Shield's detections.
+- The default priority `10,000,000` is the value AWS itself assigns to Shield rules so they evaluate after all your own rules. Do not use this priority for any other rule.
+- If you have engaged the AWS Shield Response Team (SRT), they may add temporary rules at **low priority numbers** during an active DDoS event. Leave headroom at the low end of your priority range so the SRT has room to insert rules without conflicts.
+
+### Enabling automatic mitigation per resource
+
+`aws_shield_application_layer_automatic_response` is a **per-resource** Terraform resource — it must be declared for each CloudFront distribution or ALB you want to protect, in the stack that manages those resources (not in this module). This module only needs to know the resulting rule group ARN.
+
+```hcl
+# In your service/distribution stack — one per protected resource
+resource "aws_shield_application_layer_automatic_response" "this" {
+  resource_arn = aws_cloudfront_distribution.this.arn
+  action { count {} } # start with count; switch to block when confident
+}
+```
+
+### Finding the rule group ARN
+
+The ARN is only available after Shield has created the rule group. You can find it via:
+
+- **AWS Console** — Shield Advanced → Protected resources → select your resource → "Automatic application layer DDoS mitigation" section.
+- **AWS CLI:**
+  ```bash
+  aws wafv2 list-rule-groups --scope CLOUDFRONT --region us-east-1
+  ```
+  Look for a rule group named `ShieldMitigationRuleGroup_<account-id>_<web-acl-id>_<uuid>`.
+- **Terraform data source** — to avoid hardcoding the ARN:
+  ```hcl
+  data "aws_wafv2_rule_group" "shield" {
+    name  = "ShieldMitigationRuleGroup_<account-id>_<web-acl-id>_<uuid>"
+    scope = "CLOUDFRONT"
+  }
+
+  shield_mitigation = {
+    enabled        = true
+    rule_group_arn = data.aws_wafv2_rule_group.shield.arn
+  }
+  ```
+
+> **Important:** Shield automatically adds the rule group to your ACL when mitigation is first enabled. If you run `terraform apply` before declaring `shield_mitigation`, Terraform will remove the Shield rule group from the ACL. Always add the ARN to your config before the next apply.
+
+The typical workflow is:
+1. Declare `aws_shield_application_layer_automatic_response` for each protected resource in the service stack and apply.
+2. Shield creates the rule group and adds it to the ACL automatically.
+3. Retrieve the ARN (console, CLI, or data source) and add it to `var.shield_mitigation` in this module.
+4. Run `terraform apply` — Terraform now manages the rule group and will no longer remove it.
 
 ## Waf logging
 
@@ -155,14 +223,12 @@ resource "aws_s3_bucket_lifecycle_configuration" "logs" {
 |------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.3.0 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 4.0 |
-| <a name="requirement_http"></a> [http](#requirement\_http) | >= 3.0 |
 
 ## Providers
 
 | Name | Version |
 |------|---------|
 | <a name="provider_aws"></a> [aws](#provider\_aws) | >= 4.0 |
-| <a name="provider_http"></a> [http](#provider\_http) | >= 3.0 |
 
 ## Modules
 
@@ -194,9 +260,6 @@ No modules.
 | [aws_wafv2_web_acl_logging_configuration.logs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_web_acl_logging_configuration) | resource |
 | [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
 | [aws_s3_bucket.log_bucket](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/s3_bucket) | data source |
-| [http_http.googlebot](https://registry.terraform.io/providers/hashicorp/http/latest/docs/data-sources/http) | data source |
-| [http_http.k6_load_generators](https://registry.terraform.io/providers/hashicorp/http/latest/docs/data-sources/http) | data source |
-| [http_http.parsely_ip_list](https://registry.terraform.io/providers/hashicorp/http/latest/docs/data-sources/http) | data source |
 
 ## Inputs
 
@@ -205,33 +268,34 @@ No modules.
 | <a name="input_alternative_logs_bucket_name"></a> [alternative\_logs\_bucket\_name](#input\_alternative\_logs\_bucket\_name) | Override the default bucket destination for waf logs. If 'deploy\_logs' is set to false, this variable must be set. | `string` | `null` | no |
 | <a name="input_aws_managed_rule_groups"></a> [aws\_managed\_rule\_groups](#input\_aws\_managed\_rule\_groups) | AWS Managed Rule Groups counting and labeling requests. The labels applied by these groups can be specified in aws\_managed\_rule\_labels to rate limit requests. Available groups are described here https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-list.html. Not applicable for var.waf\_scope = REGIONAL | <pre>list(object({<br/>    name     = string<br/>    priority = number<br/>  }))</pre> | <pre>[<br/>  {<br/>    "name": "AWSManagedRulesAnonymousIpList",<br/>    "priority": 50<br/>  },<br/>  {<br/>    "name": "AWSManagedRulesAmazonIpReputationList",<br/>    "priority": 51<br/>  }<br/>]</pre> | no |
 | <a name="input_aws_managed_rule_labels"></a> [aws\_managed\_rule\_labels](#input\_aws\_managed\_rule\_labels) | AWS Managed rules labels to rate limit. The group using this label must be specified in aws\_managed\_rule\_groups in order to apply the label to incoming requests. Not applicable for var.waf\_scope = REGIONAL | <pre>list(object({<br/>    name                 = string<br/>    labels               = list(string)<br/>    enable_rate_limiting = optional(bool, true)      # if false all requests will be directly blocked<br/>    limit                = optional(number, 500)     # only used if enable_rate_limiting = true<br/>    action               = optional(string, "block") # possible actions: count, block, captcha, challenge<br/>    immunity_seconds     = optional(number, 300)     # only used if action is captcha (for challenge it's not currently allowed in tf, see waf.tf for more details). Immunity time in seconds after successfully passing a challenge<br/>    priority             = number<br/>  }))</pre> | <pre>[<br/>  {<br/>    "labels": [<br/>      "awswaf:managed:aws:anonymous-ip-list:AnonymousIPList",<br/>      "awswaf:managed:aws:amazon-ip-list:AWSManagedIPReputationList",<br/>      "awswaf:managed:aws:amazon-ip-list:AWSManagedReconnaissanceList",<br/>      "awswaf:managed:aws:amazon-ip-list:AWSManagedIPDDoSList"<br/>    ],<br/>    "name": "aws_managed_rule_low_limit",<br/>    "priority": 60<br/>  },<br/>  {<br/>    "labels": [<br/>      "awswaf:managed:aws:anonymous-ip-list:HostingProviderIPList"<br/>    ],<br/>    "limit": 750,<br/>    "name": "aws_managed_rule_high_limit",<br/>    "priority": 61<br/>  }<br/>]</pre> | no |
+| <a name="input_aws_managed_rule_labels_priority"></a> [aws\_managed\_rule\_labels\_priority](#input\_aws\_managed\_rule\_labels\_priority) | Priority of the aws\_managed\_rule\_labels rule group rule in the WAF ACL. Must not conflict with any other rule priority. | `number` | `60` | no |
 | <a name="input_block_articles"></a> [block\_articles](#input\_block\_articles) | The list of articles to block from some country\_codes | <pre>list(object({<br/>    name          = string<br/>    priority      = number<br/>    articles      = set(string)<br/>    country_codes = set(string)<br/>  }))</pre> | `[]` | no |
 | <a name="input_block_regex_pattern"></a> [block\_regex\_pattern](#input\_block\_regex\_pattern) | Regex to block articles coming from a list of country\_codes | <pre>map(object({<br/>    description   = string<br/>    priority      = number<br/>    country_codes = set(string)<br/>    regex_string  = string<br/>  }))</pre> | `{}` | no |
-| <a name="input_block_uri_path_string"></a> [block\_uri\_path\_string](#input\_block\_uri\_path\_string) | Allow to block specific strings, defining the positional constraint of the string. | <pre>list(object({<br/>    name                  = string<br/>    priority              = optional(number, 1)<br/>    positional_constraint = optional(string, "EXACTLY")<br/>    search_string         = string<br/>  }))</pre> | `[]` | no |
-| <a name="input_blocked_headers"></a> [blocked\_headers](#input\_blocked\_headers) | List of objects containing header key, value and string\_match\_type. Set to null to disable the blocking on headers | <pre>list(object({<br/>    header            = string<br/>    value             = string<br/>    string_match_type = optional(string, "EXACTLY") # possible values: EXACTLY, STARTS_WITH, ENDS_WITH, CONTAINS, CONTAINS_WORD<br/>  }))</pre> | `null` | no |
-| <a name="input_count_requests_from_ch"></a> [count\_requests\_from\_ch](#input\_count\_requests\_from\_ch) | If true it deploys a rule that counts requests from Switzerland with priority 4 | `bool` | `false` | no |
-| <a name="input_country_count_rules"></a> [country\_count\_rules](#input\_country\_count\_rules) | Enable the deployment of rules that count the requests from specific countries. | <pre>list(object({<br/>    name          = string<br/>    limit         = number<br/>    priority      = number<br/>    country_codes = set(string)<br/>  }))</pre> | `[]` | no |
+| <a name="input_block_uri_path_string"></a> [block\_uri\_path\_string](#input\_block\_uri\_path\_string) | Allow to block specific strings, defining the positional constraint of the string. | <pre>list(object({<br/>    name                  = string<br/>    priority              = number<br/>    positional_constraint = optional(string, "EXACTLY")<br/>    search_string         = string<br/>  }))</pre> | `[]` | no |
+| <a name="input_blocked_headers"></a> [blocked\_headers](#input\_blocked\_headers) | Headers to block on. Set to null to disable. 'rules' is a list of header/value match conditions; 'priority' sets the WAF ACL rule priority. | <pre>object({<br/>    priority = optional(number, 0)<br/>    rules = list(object({<br/>      header            = string<br/>      value             = string<br/>      string_match_type = optional(string, "EXACTLY") # possible values: EXACTLY, STARTS_WITH, ENDS_WITH, CONTAINS, CONTAINS_WORD<br/>    }))<br/>  })</pre> | `null` | no |
+| <a name="input_count_requests_from_ch"></a> [count\_requests\_from\_ch](#input\_count\_requests\_from\_ch) | If enabled, deploys a rule that counts requests from Switzerland. | <pre>object({<br/>    enabled  = optional(bool, false)<br/>    priority = optional(number, 43)<br/>  })</pre> | `{}` | no |
+| <a name="input_country_count_rules"></a> [country\_count\_rules](#input\_country\_count\_rules) | Enable the deployment of rules that count the requests from specific countries. The priority defined here is the one internal to the rule group. | <pre>list(object({<br/>    name          = string<br/>    limit         = number<br/>    priority      = number<br/>    country_codes = set(string)<br/>  }))</pre> | `[]` | no |
+| <a name="input_country_count_rules_priority"></a> [country\_count\_rules\_priority](#input\_country\_count\_rules\_priority) | Priority of the country\_count\_rules rule group rule in the WAF ACL. Must not conflict with any other rule priority. | `number` | `90` | no |
 | <a name="input_country_rates"></a> [country\_rates](#input\_country\_rates) | List of limits for groups of countries. | <pre>list(object({<br/>    name             = string<br/>    limit            = number<br/>    priority         = number<br/>    action           = optional(string, "block") # possible actions: block, captcha, challenge<br/>    immunity_seconds = optional(number, 300)     # only used if action is captcha (for challenge it's not currently allowed in tf, see waf.tf for more details). Immunity time in seconds after successfully passing a challenge<br/>    country_codes    = set(string)<br/>  }))</pre> | `[]` | no |
 | <a name="input_deploy_logs"></a> [deploy\_logs](#input\_deploy\_logs) | Enables the deployment of the s3 bucket to store the waf logs. Also enables the deployment of the athena pre-saved queries to easily access the logs generated by waf | `bool` | `true` | no |
 | <a name="input_enable_logging"></a> [enable\_logging](#input\_enable\_logging) | Enables or disable the logging (independent of the buckets/athena) | `bool` | `false` | no |
-| <a name="input_everybody_else_limit"></a> [everybody\_else\_limit](#input\_everybody\_else\_limit) | The limit for all country\_codes which are not covered by country\_rates - not applied if it set to 0 | `number` | `0` | no |
-| <a name="input_google_whitelist_config"></a> [google\_whitelist\_config](#input\_google\_whitelist\_config) | Configuration for whitelisting Googlebot IPs. Set 'whitelist' to false to disable the whitelisting. Doc https://developers.google.com/crawling/docs/crawlers-fetchers/verify-google-requests. The IPs are automatically parsed from the given url. Use 'insert\_header' to add custom headers to these requests (the headers will be prefixed automatically with `x-amzn-waf-`). | <pre>object({<br/>    enable                  = optional(bool, false)<br/>    url                     = optional(string, "https://developers.google.com/static/crawling/ipranges/common-crawlers.json")<br/>    insert_header           = optional(map(string), null)<br/>    http_call_extra_headers = optional(map(string), {})<br/>  })</pre> | `{}` | no |
-| <a name="input_ip_whitelisting"></a> [ip\_whitelisting](#input\_ip\_whitelisting) | Map of configurations for whitelisting custom lists of IPs. Use 'insert\_header' to add custom headers to these requests (the headers will be prefixed automatically with `x-amzn-waf-`). | <pre>map(object({<br/>    ips                = list(string)<br/>    ip_address_version = string # possible values: IPV4, IPV6<br/>    priority           = number # > 10<br/>    insert_header      = optional(map(string), null)<br/>  }))</pre> | `{}` | no |
-| <a name="input_k6_whitelist_config"></a> [k6\_whitelist\_config](#input\_k6\_whitelist\_config) | Configuration for whitelisting the K6 load generators IPs. Set 'whitelist' to false to disable the whitelisting. Doc https://k6.io/docs/cloud/cloud-reference/cloud-ips/. The IPs are automatically parsed from the given url. Use 'insert\_header' to add custom headers to these requests (the headers will be prefixed automatically with `x-amzn-waf-`). | <pre>object({<br/>    enable                  = optional(bool, false)<br/>    url                     = optional(string, "https://ip-ranges.amazonaws.com/ip-ranges.json")<br/>    insert_header           = optional(map(string), null)<br/>    http_call_extra_headers = optional(map(string), {})<br/>  })</pre> | `{}` | no |
-| <a name="input_limit_search_requests_by_countries"></a> [limit\_search\_requests\_by\_countries](#input\_limit\_search\_requests\_by\_countries) | Limit requests on the path /search that comes from the specified list of country\_codes. Rule not deployed if list of countries is empty. | <pre>object({<br/>    limit         = optional(number, 100)<br/>    country_codes = set(string)<br/>  })</pre> | <pre>{<br/>  "country_codes": [],<br/>  "limit": 100<br/>}</pre> | no |
+| <a name="input_everybody_else_config"></a> [everybody\_else\_config](#input\_everybody\_else\_config) | Priority and limit for all country\_codes not covered by country\_rates. Set limit to 0 to disable the rule. | <pre>object({<br/>    limit    = optional(number, 0)<br/>    priority = optional(number, 80)<br/>  })</pre> | `{}` | no |
+| <a name="input_ip_whitelisting"></a> [ip\_whitelisting](#input\_ip\_whitelisting) | Map of configurations for whitelisting IP lists. Populate this using the ip\_list\_fetcher sub-module or with static CIDRs. Use 'insert\_header' to add custom headers to whitelisted requests (headers are prefixed automatically with `x-amzn-waf-`). | <pre>map(object({<br/>    ips                = list(string)<br/>    ip_address_version = string # possible values: IPV4, IPV6<br/>    priority           = number<br/>    insert_header      = optional(map(string), null)<br/>  }))</pre> | `{}` | no |
+| <a name="input_limit_search_requests_by_countries"></a> [limit\_search\_requests\_by\_countries](#input\_limit\_search\_requests\_by\_countries) | Limit requests on the path /search that comes from the specified list of country\_codes. Rule not deployed if list of countries is empty. | <pre>object({<br/>    priority      = optional(number, 2)<br/>    limit         = optional(number, 100)<br/>    country_codes = set(string)<br/>  })</pre> | <pre>{<br/>  "country_codes": [],<br/>  "limit": 100<br/>}</pre> | no |
 | <a name="input_logo_path"></a> [logo\_path](#input\_logo\_path) | Company logo path (for 429 pages) | `string` | `""` | no |
 | <a name="input_logs_bucket_name_override"></a> [logs\_bucket\_name\_override](#input\_logs\_bucket\_name\_override) | Override the default bucket name for waf logs. Default name: `aws-waf-logs-<lower(var.waf_scope)>-<data.aws_caller_identity.current.account_id>` | `string` | `null` | no |
-| <a name="input_parsely_whitelist_config"></a> [parsely\_whitelist\_config](#input\_parsely\_whitelist\_config) | Configuration for whitelisting Parse.ly crawler IPs. Set 'whitelist' to false to disable the whitelisting. The IPs are automatically parsed from the given url. Use 'insert\_header' to add custom headers to these requests (the headers will be prefixed automatically with `x-amzn-waf-`). | <pre>object({<br/>    enable                  = optional(bool, false)<br/>    url                     = optional(string, "https://www.parse.ly/static/data/crawler-ips.json")<br/>    insert_header           = optional(map(string), null)<br/>    http_call_extra_headers = optional(map(string), {})<br/>  })</pre> | `{}` | no |
+| <a name="input_rate_limit_failsafe_priority"></a> [rate\_limit\_failsafe\_priority](#input\_rate\_limit\_failsafe\_priority) | Priority of the rate\_limit\_everything\_apart\_from\_CH failsafe rule in the WAF ACL. Must not conflict with any other rule priority. | `number` | `42` | no |
+| <a name="input_shield_mitigation"></a> [shield\_mitigation](#input\_shield\_mitigation) | Reference the Shield Advanced automatic mitigation rule group in the WAF ACL. AWS Shield Advanced creates and manages this rule group when automatic application layer DDoS mitigation is enabled on the protected resource — this variable lets you explicitly control its priority rather than letting Shield place it automatically. rule\_group\_arn must be provided when enabled; it is available after Shield has created the group. Priority defaults to 10,000,000, the value AWS assigns so that the Shield rule runs after all your own rules. Do not use priority 10,000,000 for any other rule. See https://docs.aws.amazon.com/waf/latest/developerguide/ddos-automatic-app-layer-response-rg.html | <pre>object({<br/>    enabled        = optional(bool, false)<br/>    priority       = optional(number, 10000000)<br/>    rule_group_arn = optional(string, null)<br/>    action         = optional(string, "count") # possible values: count (observe only), none (use rule group's own actions — blocks when Shield detects an attack)<br/>  })</pre> | `{}` | no |
 | <a name="input_waf_logs_retention"></a> [waf\_logs\_retention](#input\_waf\_logs\_retention) | Retention time (in days) of waf logs | `number` | `7` | no |
 | <a name="input_waf_name"></a> [waf\_name](#input\_waf\_name) | The name for WAF | `string` | `"cloudfront-waf"` | no |
 | <a name="input_waf_scope"></a> [waf\_scope](#input\_waf\_scope) | The scope of the deployed waf. Available options [CLOUDFRONT,REGIONAL] | `string` | `"CLOUDFRONT"` | no |
-| <a name="input_whitelisted_headers"></a> [whitelisted\_headers](#input\_whitelisted\_headers) | Map of header => value to be whitelisted. Set to null to disable the whitelisting | <pre>object({<br/>    headers           = map(string)<br/>    string_match_type = optional(string, "EXACTLY") # possible values: EXACTLY, STARTS_WITH, ENDS_WITH, CONTAINS, CONTAINS_WORD<br/>  })</pre> | `null` | no |
+| <a name="input_whitelist_group_priority"></a> [whitelist\_group\_priority](#input\_whitelist\_group\_priority) | Priority of the whitelist rule group rule in the WAF ACL. Must not conflict with any other rule priority. | `number` | `1` | no |
+| <a name="input_whitelisted_headers"></a> [whitelisted\_headers](#input\_whitelisted\_headers) | Map of header => value to be whitelisted. Set to null to disable the whitelisting | <pre>object({<br/>    priority          = optional(number, 44)<br/>    headers           = map(string)<br/>    string_match_type = optional(string, "EXACTLY") # possible values: EXACTLY, STARTS_WITH, ENDS_WITH, CONTAINS, CONTAINS_WORD<br/>  })</pre> | `null` | no |
 
 ## Outputs
 
 | Name | Description |
 |------|-------------|
-| <a name="output_google_bots"></a> [google\_bots](#output\_google\_bots) | List of Google bots whitelisted |
 | <a name="output_logs_bucket_arn"></a> [logs\_bucket\_arn](#output\_logs\_bucket\_arn) | Logs bucket arn |
 | <a name="output_logs_bucket_name"></a> [logs\_bucket\_name](#output\_logs\_bucket\_name) | Logs bucket name |
 | <a name="output_web_acl_arn"></a> [web\_acl\_arn](#output\_web\_acl\_arn) | Web ACL arn |
