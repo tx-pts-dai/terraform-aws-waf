@@ -1,0 +1,14 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: terraform-aws-waf
+  namespace: tx-pts-dai
+  description: terraform-aws-waf component
+  annotations:
+    github.com/project-slug: tx-pts-dai/terraform-aws-waf
+  tags:
+    - tx-pts-dai
+spec:
+  type: infrastructure
+  lifecycle: production
+  owner: group:default/dai
