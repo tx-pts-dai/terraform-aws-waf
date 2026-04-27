@@ -326,18 +326,3 @@ variable "country_count_rules_priority" {
   type        = number
   default     = 90
 }
-
-variable "shield_mitigation" {
-  description = "Reference the Shield Advanced automatic mitigation rule group in the WAF ACL. AWS Shield Advanced creates and manages this rule group when automatic application layer DDoS mitigation is enabled on the protected resource — this variable lets you explicitly control its priority rather than letting Shield place it automatically. rule_group_arn must be provided when enabled; it is available after Shield has created the group. Priority defaults to 10,000,000, the value AWS assigns so that the Shield rule runs after all your own rules. Do not use priority 10,000,000 for any other rule. See https://docs.aws.amazon.com/waf/latest/developerguide/ddos-automatic-app-layer-response-rg.html"
-  type = object({
-    enabled        = optional(bool, false)
-    priority       = optional(number, 10000000)
-    rule_group_arn = optional(string, null)
-    action         = optional(string, "count") # possible values: count (observe only), none (use rule group's own actions — blocks when Shield detects an attack)
-  })
-  default = {}
-  validation {
-    condition     = !var.shield_mitigation.enabled || var.shield_mitigation.rule_group_arn != null
-    error_message = "var.shield_mitigation.rule_group_arn must be set when shield_mitigation.enabled is true."
-  }
-}

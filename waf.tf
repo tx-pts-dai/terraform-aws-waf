@@ -610,40 +610,6 @@ resource "aws_wafv2_web_acl" "waf" {
     }
   }
 
-  # Priority 10,000,000 is reserved for the AWS Shield Advanced automatic mitigation rule group.
-  # Do not assign this priority to any other rule.
-  #
-  # Additionally, if you have engaged the AWS Shield Response Team (SRT), they may add rules
-  # directly to this web ACL during an active DDoS event (with your approval). The SRT will
-  # typically place their rules at low priority numbers so they are evaluated before your own
-  # rules. Leave some headroom at the low end of your priority range for this purpose.
-  dynamic "rule" {
-    for_each = var.shield_mitigation.enabled ? [1] : []
-    content {
-      name     = "${var.waf_name}_ShieldMitigationRuleGroup"
-      priority = var.shield_mitigation.priority
-      override_action {
-        dynamic "count" {
-          for_each = var.shield_mitigation.action == "count" ? [1] : []
-          content {}
-        }
-        dynamic "none" {
-          for_each = var.shield_mitigation.action == "none" ? [1] : []
-          content {}
-        }
-      }
-      statement {
-        rule_group_reference_statement {
-          arn = var.shield_mitigation.rule_group_arn
-        }
-      }
-      visibility_config {
-        cloudwatch_metrics_enabled = true
-        metric_name                = "${var.waf_name}_ShieldMitigationRuleGroup"
-        sampled_requests_enabled   = true
-      }
-    }
-  }
 }
 
 resource "aws_wafv2_rule_group" "country_rate_rules" {
