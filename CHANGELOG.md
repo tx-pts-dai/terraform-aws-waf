@@ -2,7 +2,7 @@
 
 ## [8.0.0]
 
-This version introduces breaking changes to several variables to allow configurable WAF ACL priorities, removes built-in bot IP fetching in favour of the `ip_list_fetcher` submodule, and adds AWS Shield Advanced integration. **All users must update their Terraform configurations** when upgrading to this version.
+This version introduces breaking changes to several variables to allow configurable WAF ACL priorities, removes built-in bot IP fetching in favour of the `ip_list_fetcher` submodule. **All users must update their Terraform configurations** when upgrading to this version.
 
 ### Breaking changes
 
@@ -82,25 +82,6 @@ ip_whitelisting = {
 ```
 
 ### New features
-
-#### AWS Shield Advanced integration (`shield_mitigation`)
-
-The module can now reference the AWS Shield Advanced automatic mitigation rule group via `var.shield_mitigation`. Key points:
-
-- Shield creates **one rule group per WAF ACL**, regardless of how many resources share that ACL or have automatic mitigation enabled.
-- `aws_shield_application_layer_automatic_response` is a per-resource concern and belongs in the service stack — not in this module.
-- The default `action` is `"count"` (observe only); set to `"none"` to let Shield block during an active attack.
-- Shield automatically adds the rule group to the ACL when first enabled. Always add the ARN to `var.shield_mitigation` before the next `terraform apply`, otherwise Terraform will remove the Shield rule group from the ACL.
-
-```hcl
-shield_mitigation = {
-  enabled        = true
-  rule_group_arn = "<arn-provided-by-shield>"
-  action         = "count" # change to "none" to enable blocking
-}
-```
-
-See the README for full details on finding the ARN and the recommended workflow.
 
 #### Configurable priorities for `everybody_else_config`, `blocked_headers`, `count_requests_from_ch`
 

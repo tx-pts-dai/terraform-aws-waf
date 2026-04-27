@@ -24,76 +24,12 @@ It's designed to propose the following rules:
 | defined in `var.country_rates[*].priority` | country_rates | Geographical rate limit rules, deployed as chunked rule groups (see below) |
 | `var.everybody_else_config.priority` (80) | everybody_else_config | Rate limit for all country codes not covered by `country_rates`. Set `limit = 0` to disable |
 | `var.country_count_rules_priority` (90) | country_count_rules | Rule group that counts requests from specific countries |
-| `var.shield_mitigation.priority` (10,000,000) | ShieldMitigationRuleGroup | AWS Shield Advanced automatic mitigation rule group (see below). Only deployed when `var.shield_mitigation.enabled = true` |
 
 ## Country rates — chunked rule groups
 
 The `country_rates` rules are deployed inside WAF rule groups rather than directly in the Web ACL. Because each WAF rule group has a fixed capacity, the module automatically splits `var.country_rates` into chunks of 4 and creates one rule group per chunk (`country_rate_rules_0`, `country_rate_rules_1`, …). This allows you to define an unlimited number of country rate rules without hitting WAF capacity limits.
 
 Each entry in `var.country_rates` maps to one rate-based rule inside the appropriate chunk group. The `priority` field is scoped to the rule group (not the Web ACL), so priorities only need to be unique within `var.country_rates` itself.
-
-## AWS Shield Advanced integration
-
-When [AWS Shield Advanced automatic application layer DDoS mitigation](https://docs.aws.amazon.com/waf/latest/developerguide/ddos-automatic-app-layer-response-rg.html) is enabled on a protected resource, Shield creates and manages a **single WAF rule group per Web ACL**. Even if multiple resources (e.g. multiple CloudFront distributions) share the same ACL and all have automatic mitigation enabled, Shield still creates only one rule group for that ACL. This module references that rule group via `var.shield_mitigation`:
-
-```hcl
-shield_mitigation = {
-  enabled        = true
-  rule_group_arn = "<arn-provided-by-shield>"  # available after Shield has created the group
-  priority       = 10000000                    # default — runs after all your own rules
-  action         = "count"                     # default — observe only; set to "none" to let Shield block
-}
-```
-
-- `rule_group_arn` is required when `enabled = true`; Shield creates it once automatic mitigation is activated on any resource associated with this ACL.
-- `action` controls the WAF `override_action` applied to the Shield rule group:
-  - `"count"` (default) — all requests are counted but never blocked by this rule group. Use this to observe Shield's detections without impact.
-  - `"none"` — the rule group's own actions apply, meaning Shield will block traffic it identifies as a DDoS attack. Switch to this when you are under active attack and have validated Shield's detections.
-- The default priority `10,000,000` is the value AWS itself assigns to Shield rules so they evaluate after all your own rules. Do not use this priority for any other rule.
-- If you have engaged the AWS Shield Response Team (SRT), they may add temporary rules at **low priority numbers** during an active DDoS event. Leave headroom at the low end of your priority range so the SRT has room to insert rules without conflicts.
-
-### Enabling automatic mitigation per resource
-
-`aws_shield_application_layer_automatic_response` is a **per-resource** Terraform resource — it must be declared for each CloudFront distribution or ALB you want to protect, in the stack that manages those resources (not in this module). This module only needs to know the resulting rule group ARN.
-
-```hcl
-# In your service/distribution stack — one per protected resource
-resource "aws_shield_application_layer_automatic_response" "this" {
-  resource_arn = aws_cloudfront_distribution.this.arn
-  action { count {} } # start with count; switch to block when confident
-}
-```
-
-### Finding the rule group ARN
-
-The ARN is only available after Shield has created the rule group. You can find it via:
-
-- **AWS Console** — Shield Advanced → Protected resources → select your resource → "Automatic application layer DDoS mitigation" section.
-- **AWS CLI:**
-  ```bash
-  aws wafv2 list-rule-groups --scope CLOUDFRONT --region us-east-1
-  ```
-  Look for a rule group named `ShieldMitigationRuleGroup_<account-id>_<web-acl-id>_<uuid>`.
-- **Terraform data source** — to avoid hardcoding the ARN:
-  ```hcl
-  data "aws_wafv2_rule_group" "shield" {
-    name  = "ShieldMitigationRuleGroup_<account-id>_<web-acl-id>_<uuid>"
-    scope = "CLOUDFRONT"
-  }
-
-  shield_mitigation = {
-    enabled        = true
-    rule_group_arn = data.aws_wafv2_rule_group.shield.arn
-  }
-  ```
-
-> **Important:** Shield automatically adds the rule group to your ACL when mitigation is first enabled. If you run `terraform apply` before declaring `shield_mitigation`, Terraform will remove the Shield rule group from the ACL. Always add the ARN to your config before the next apply.
-
-The typical workflow is:
-1. Declare `aws_shield_application_layer_automatic_response` for each protected resource in the service stack and apply.
-2. Shield creates the rule group and adds it to the ACL automatically.
-3. Retrieve the ARN (console, CLI, or data source) and add it to `var.shield_mitigation` in this module.
-4. Run `terraform apply` — Terraform now manages the rule group and will no longer remove it.
 
 ## Waf logging
 
@@ -285,7 +221,6 @@ No modules.
 | <a name="input_logo_path"></a> [logo\_path](#input\_logo\_path) | Company logo path (for 429 pages) | `string` | `""` | no |
 | <a name="input_logs_bucket_name_override"></a> [logs\_bucket\_name\_override](#input\_logs\_bucket\_name\_override) | Override the default bucket name for waf logs. Default name: `aws-waf-logs-<lower(var.waf_scope)>-<data.aws_caller_identity.current.account_id>` | `string` | `null` | no |
 | <a name="input_rate_limit_failsafe_priority"></a> [rate\_limit\_failsafe\_priority](#input\_rate\_limit\_failsafe\_priority) | Priority of the rate\_limit\_everything\_apart\_from\_CH failsafe rule in the WAF ACL. Must not conflict with any other rule priority. | `number` | `42` | no |
-| <a name="input_shield_mitigation"></a> [shield\_mitigation](#input\_shield\_mitigation) | Reference the Shield Advanced automatic mitigation rule group in the WAF ACL. AWS Shield Advanced creates and manages this rule group when automatic application layer DDoS mitigation is enabled on the protected resource — this variable lets you explicitly control its priority rather than letting Shield place it automatically. rule\_group\_arn must be provided when enabled; it is available after Shield has created the group. Priority defaults to 10,000,000, the value AWS assigns so that the Shield rule runs after all your own rules. Do not use priority 10,000,000 for any other rule. See https://docs.aws.amazon.com/waf/latest/developerguide/ddos-automatic-app-layer-response-rg.html | <pre>object({<br/>    enabled        = optional(bool, false)<br/>    priority       = optional(number, 10000000)<br/>    rule_group_arn = optional(string, null)<br/>    action         = optional(string, "count") # possible values: count (observe only), none (use rule group's own actions — blocks when Shield detects an attack)<br/>  })</pre> | `{}` | no |
 | <a name="input_waf_logs_retention"></a> [waf\_logs\_retention](#input\_waf\_logs\_retention) | Retention time (in days) of waf logs | `number` | `7` | no |
 | <a name="input_waf_name"></a> [waf\_name](#input\_waf\_name) | The name for WAF | `string` | `"cloudfront-waf"` | no |
 | <a name="input_waf_scope"></a> [waf\_scope](#input\_waf\_scope) | The scope of the deployed waf. Available options [CLOUDFRONT,REGIONAL] | `string` | `"CLOUDFRONT"` | no |
