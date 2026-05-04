@@ -17,3 +17,13 @@ output "logs_bucket_arn" {
   value       = var.deploy_logs ? aws_s3_bucket.logs[0].arn : null
   description = "Logs bucket arn"
 }
+
+output "ip_set_ids" {
+  value = { for k, v in aws_wafv2_ip_set.whitelist : v.name => {
+    id        = v.id
+    arn       = v.arn
+    addresses = v.addresses
+    scope     = v.scope
+  } }
+  description = "Map of IP set name to ID created for the WAF"
+}
