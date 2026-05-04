@@ -17,3 +17,11 @@ output "logs_bucket_arn" {
   value       = var.deploy_logs ? aws_s3_bucket.logs[0].arn : null
   description = "Logs bucket arn"
 }
+
+output "ip_set_ids" {
+  value = concat(
+    aws_wafv2_ip_set.whitelist[*].id,
+
+  )
+  description = "List of IP set IDs created for the WAF"
+}
