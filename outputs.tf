@@ -19,6 +19,6 @@ output "logs_bucket_arn" {
 }
 
 output "ip_set_ids" {
-  value       = aws_wafv2_ip_set.whitelist[*].id
-  description = "List of IP set IDs created for the WAF"
+  value       = { for k, v in aws_wafv2_ip_set.whitelist : k => v.id }
+  description = "Map of IP set name to ID created for the WAF"
 }
