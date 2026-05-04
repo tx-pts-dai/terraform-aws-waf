@@ -231,7 +231,7 @@ No modules.
 
 | Name | Description |
 | ---- | ----------- |
-| <a name="output_ip_set_ids"></a> [ip\_set\_ids](#output\_ip\_set\_ids) | List of IP set IDs created for the WAF |
+| <a name="output_ip_set_ids"></a> [ip\_set\_ids](#output\_ip\_set\_ids) | Map of IP set name to ID created for the WAF |
 | <a name="output_logs_bucket_arn"></a> [logs\_bucket\_arn](#output\_logs\_bucket\_arn) | Logs bucket arn |
 | <a name="output_logs_bucket_name"></a> [logs\_bucket\_name](#output\_logs\_bucket\_name) | Logs bucket name |
 | <a name="output_web_acl_arn"></a> [web\_acl\_arn](#output\_web\_acl\_arn) | Web ACL arn |
