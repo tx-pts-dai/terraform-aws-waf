@@ -156,14 +156,14 @@ resource "aws_s3_bucket_lifecycle_configuration" "logs" {
 ## Requirements
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.3.0 |
 | <a name="requirement_aws"></a> [aws](#requirement\_aws) | >= 4.0 |
 
 ## Providers
 
 | Name | Version |
-|------|---------|
+| ---- | ------- |
 | <a name="provider_aws"></a> [aws](#provider\_aws) | >= 4.0 |
 
 ## Modules
@@ -173,7 +173,7 @@ No modules.
 ## Resources
 
 | Name | Type |
-|------|------|
+| ---- | ---- |
 | [aws_athena_database.waf](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/athena_database) | resource |
 | [aws_athena_named_query.blocked_requests](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/athena_named_query) | resource |
 | [aws_athena_named_query.count_group_by](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/athena_named_query) | resource |
@@ -200,7 +200,7 @@ No modules.
 ## Inputs
 
 | Name | Description | Type | Default | Required |
-|------|-------------|------|---------|:--------:|
+| ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_alternative_logs_bucket_name"></a> [alternative\_logs\_bucket\_name](#input\_alternative\_logs\_bucket\_name) | Override the default bucket destination for waf logs. If 'deploy\_logs' is set to false, this variable must be set. | `string` | `null` | no |
 | <a name="input_aws_managed_rule_groups"></a> [aws\_managed\_rule\_groups](#input\_aws\_managed\_rule\_groups) | AWS Managed Rule Groups counting and labeling requests. The labels applied by these groups can be specified in aws\_managed\_rule\_labels to rate limit requests. Available groups are described here https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-list.html. Not applicable for var.waf\_scope = REGIONAL | <pre>list(object({<br/>    name     = string<br/>    priority = number<br/>  }))</pre> | <pre>[<br/>  {<br/>    "name": "AWSManagedRulesAnonymousIpList",<br/>    "priority": 50<br/>  },<br/>  {<br/>    "name": "AWSManagedRulesAmazonIpReputationList",<br/>    "priority": 51<br/>  }<br/>]</pre> | no |
 | <a name="input_aws_managed_rule_labels"></a> [aws\_managed\_rule\_labels](#input\_aws\_managed\_rule\_labels) | AWS Managed rules labels to rate limit. The group using this label must be specified in aws\_managed\_rule\_groups in order to apply the label to incoming requests. Not applicable for var.waf\_scope = REGIONAL | <pre>list(object({<br/>    name                 = string<br/>    labels               = list(string)<br/>    enable_rate_limiting = optional(bool, true)      # if false all requests will be directly blocked<br/>    limit                = optional(number, 500)     # only used if enable_rate_limiting = true<br/>    action               = optional(string, "block") # possible actions: count, block, captcha, challenge<br/>    immunity_seconds     = optional(number, 300)     # only used if action is captcha (for challenge it's not currently allowed in tf, see waf.tf for more details). Immunity time in seconds after successfully passing a challenge<br/>    priority             = number<br/>  }))</pre> | <pre>[<br/>  {<br/>    "labels": [<br/>      "awswaf:managed:aws:anonymous-ip-list:AnonymousIPList",<br/>      "awswaf:managed:aws:amazon-ip-list:AWSManagedIPReputationList",<br/>      "awswaf:managed:aws:amazon-ip-list:AWSManagedReconnaissanceList",<br/>      "awswaf:managed:aws:amazon-ip-list:AWSManagedIPDDoSList"<br/>    ],<br/>    "name": "aws_managed_rule_low_limit",<br/>    "priority": 60<br/>  },<br/>  {<br/>    "labels": [<br/>      "awswaf:managed:aws:anonymous-ip-list:HostingProviderIPList"<br/>    ],<br/>    "limit": 750,<br/>    "name": "aws_managed_rule_high_limit",<br/>    "priority": 61<br/>  }<br/>]</pre> | no |
@@ -230,7 +230,8 @@ No modules.
 ## Outputs
 
 | Name | Description |
-|------|-------------|
+| ---- | ----------- |
+| <a name="output_ip_set_ids"></a> [ip\_set\_ids](#output\_ip\_set\_ids) | List of IP set IDs created for the WAF |
 | <a name="output_logs_bucket_arn"></a> [logs\_bucket\_arn](#output\_logs\_bucket\_arn) | Logs bucket arn |
 | <a name="output_logs_bucket_name"></a> [logs\_bucket\_name](#output\_logs\_bucket\_name) | Logs bucket name |
 | <a name="output_web_acl_arn"></a> [web\_acl\_arn](#output\_web\_acl\_arn) | Web ACL arn |
