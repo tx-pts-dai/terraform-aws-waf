@@ -172,8 +172,22 @@ module "waf" {
     limit         = 100
     country_codes = ["CH"]
   }
-  everybody_else_config     = { limit = 0 }
-  block_uri_path_string     = []
+  everybody_else_config = { limit = 0 }
+  block_uri_path_string = []
+  allow_uri_path_string = [
+    {
+      name                  = "allow_next_static"
+      priority              = 3
+      positional_constraint = "STARTS_WITH"
+      search_string         = "/_next/static/"
+    },
+    {
+      name                  = "allow_static_assets"
+      priority              = 4
+      positional_constraint = "STARTS_WITH"
+      search_string         = "/static-assets/"
+    },
+  ]
   block_articles            = []
   block_regex_pattern       = {}
   logs_bucket_name_override = null
@@ -261,6 +275,7 @@ module "waf_parallel" {
     country_codes = ["CH"]
   }
   block_uri_path_string        = []
+  allow_uri_path_string        = []
   block_articles               = []
   block_regex_pattern          = {}
   logs_bucket_name_override    = null
