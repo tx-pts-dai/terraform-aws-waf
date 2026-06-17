@@ -222,6 +222,21 @@ variable "block_uri_path_string" {
   }
 }
 
+variable "allow_uri_path_string" {
+  default     = []
+  description = "Allow (whitelist) requests whose URI path matches the given string, defining the positional constraint of the string. Matching requests are immediately allowed and skip all rules with a higher priority value. Set the priority low enough to take precedence over the rate-limiting rules you want to bypass."
+  type = list(object({
+    name                  = string
+    priority              = number
+    positional_constraint = optional(string, "EXACTLY")
+    search_string         = string
+  }))
+  validation {
+    condition     = alltrue([for uri in var.allow_uri_path_string : contains(["EXACTLY", "STARTS_WITH", "ENDS_WITH", "CONTAINS", "CONTAINS_WORD"], uri.positional_constraint)])
+    error_message = "var.allow_uri_path_string.positional_constraint must be one of: EXACTLY, STARTS_WITH, ENDS_WITH, CONTAINS, CONTAINS_WORD"
+  }
+}
+
 variable "block_articles" {
   default     = []
   description = "The list of articles to block from some country_codes"

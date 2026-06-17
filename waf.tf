@@ -234,6 +234,40 @@ resource "aws_wafv2_web_acl" "waf" {
   }
 
   dynamic "rule" {
+    for_each = var.allow_uri_path_string
+    content {
+      name     = "${var.waf_name}_${rule.value.name}"
+      priority = rule.value.priority
+
+      action {
+        allow {}
+      }
+
+      statement {
+        byte_match_statement {
+          positional_constraint = rule.value.positional_constraint
+          search_string         = rule.value.search_string
+
+          field_to_match {
+            uri_path {}
+          }
+
+          text_transformation {
+            priority = 0
+            type     = "NONE"
+          }
+        }
+      }
+
+      visibility_config {
+        cloudwatch_metrics_enabled = true
+        metric_name                = "${var.waf_name}_${rule.value.name}"
+        sampled_requests_enabled   = true
+      }
+    }
+  }
+
+  dynamic "rule" {
     for_each = var.block_articles
     content {
       name     = "${var.waf_name}_${rule.value.name}"
