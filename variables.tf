@@ -341,3 +341,32 @@ variable "country_count_rules_priority" {
   type        = number
   default     = 90
 }
+
+variable "anti_ddos_managed_rule_group" {
+  description = "Deploy the AWSManagedRulesAntiDDoSRuleSet managed rule group (https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-anti-ddos.html). Set to null to disable. With override_action = \"count\" the group only counts and labels requests; set it to \"none\" to let the group block and challenge."
+  type = object({
+    priority                       = optional(number, 45)
+    override_action                = optional(string, "count")
+    sensitivity_to_block           = optional(string, "LOW")
+    challenge_usage                = optional(string, "ENABLED")
+    challenge_sensitivity          = optional(string, "HIGH")
+    exempt_uri_regular_expressions = optional(list(string), ["\\/api\\/|\\.(acc|avi|css|gif|jpe?g|js|mp[34]|ogg|otf|pdf|png|tiff?|ttf|webm|webp|woff2?)$"])
+  })
+  default = null
+  validation {
+    condition     = var.anti_ddos_managed_rule_group == null || contains(["count", "none"], try(var.anti_ddos_managed_rule_group.override_action, ""))
+    error_message = "anti_ddos_managed_rule_group.override_action must be \"count\" or \"none\"."
+  }
+  validation {
+    condition     = var.anti_ddos_managed_rule_group == null || alltrue([for s in [try(var.anti_ddos_managed_rule_group.sensitivity_to_block, ""), try(var.anti_ddos_managed_rule_group.challenge_sensitivity, "")] : contains(["LOW", "MEDIUM", "HIGH"], s)])
+    error_message = "anti_ddos_managed_rule_group sensitivities must be LOW, MEDIUM or HIGH."
+  }
+  validation {
+    condition     = var.anti_ddos_managed_rule_group == null || contains(["ENABLED", "DISABLED"], try(var.anti_ddos_managed_rule_group.challenge_usage, ""))
+    error_message = "anti_ddos_managed_rule_group.challenge_usage must be ENABLED or DISABLED."
+  }
+  validation {
+    condition     = var.anti_ddos_managed_rule_group == null || length(try(var.anti_ddos_managed_rule_group.exempt_uri_regular_expressions, [])) <= 5
+    error_message = "anti_ddos_managed_rule_group.exempt_uri_regular_expressions can have a max length of 5."
+  }
+}
