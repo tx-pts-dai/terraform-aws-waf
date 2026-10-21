@@ -350,7 +350,7 @@ variable "anti_ddos_managed_rule_group" {
     sensitivity_to_block           = optional(string, "LOW")
     challenge_usage                = optional(string, "ENABLED")
     challenge_sensitivity          = optional(string, "HIGH")
-    exempt_uri_regular_expressions = optional(list(string), ["\\/api\\/|\\.(acc|avi|css|gif|jpe?g|js|mp[34]|ogg|otf|pdf|png|tiff?|ttf|webm|webp|woff2?)$"])
+    exempt_uri_regular_expressions = optional(list(string), ["\\/api\\/|\\.(aac|avi|avif|css|gif|ico|jpe?g|js|json|m3u8|mp[34]|ogg|otf|pdf|png|svg|tiff?|ts|ttf|webm|webp|woff2?|xml)$"])
   })
   default = null
   validation {
