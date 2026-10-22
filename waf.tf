@@ -516,6 +516,52 @@ resource "aws_wafv2_web_acl" "waf" {
   }
 
   dynamic "rule" {
+    for_each = var.anti_ddos_managed_rule_group != null ? [var.anti_ddos_managed_rule_group] : []
+    content {
+      name     = "${var.waf_name}_AWSManagedRulesAntiDDoSRuleSet"
+      priority = rule.value.priority
+      override_action {
+        dynamic "count" {
+          for_each = rule.value.override_action == "count" ? [1] : []
+          content {}
+        }
+        dynamic "none" {
+          for_each = rule.value.override_action == "none" ? [1] : []
+          content {}
+        }
+      }
+      statement {
+        managed_rule_group_statement {
+          name        = "AWSManagedRulesAntiDDoSRuleSet"
+          vendor_name = "AWS"
+          managed_rule_group_configs {
+            aws_managed_rules_anti_ddos_rule_set {
+              sensitivity_to_block = rule.value.sensitivity_to_block
+              client_side_action_config {
+                challenge {
+                  usage_of_action = rule.value.challenge_usage
+                  sensitivity     = rule.value.challenge_sensitivity
+                  dynamic "exempt_uri_regular_expression" {
+                    for_each = rule.value.exempt_uri_regular_expressions
+                    content {
+                      regex_string = exempt_uri_regular_expression.value
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+      visibility_config {
+        cloudwatch_metrics_enabled = true
+        metric_name                = "${var.waf_name}_AWSManagedRulesAntiDDoSRuleSet"
+        sampled_requests_enabled   = true
+      }
+    }
+  }
+
+  dynamic "rule" {
     for_each = var.aws_managed_rule_groups
     content {
       name     = "${var.waf_name}_${rule.value.name}"

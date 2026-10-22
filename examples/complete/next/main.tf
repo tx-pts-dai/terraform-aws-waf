@@ -109,6 +109,10 @@ module "waf" {
       "MyCustomHeader2" = "Playwright-secretStr1ng-disco"
     }
   }
+  anti_ddos_managed_rule_group = {
+    override_action      = "count"
+    sensitivity_to_block = "LOW"
+  }
   aws_managed_rule_groups = [
     {
       name     = "AWSManagedRulesAnonymousIpList"
@@ -209,6 +213,10 @@ module "waf_parallel" {
       "MyCustomHeader"  = "Lighthouse"
       "MyCustomHeader2" = "Playwright-secretStr1ng-disco"
     }
+  }
+  anti_ddos_managed_rule_group = {
+    override_action      = "count"
+    sensitivity_to_block = "LOW"
   }
   aws_managed_rule_groups = [
     {
