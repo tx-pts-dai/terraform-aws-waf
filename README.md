@@ -35,27 +35,59 @@ Each entry in `var.country_rates` maps to one rate-based rule inside the appropr
 
 ## Waf logging
 
-The module will also deploy several `AWS Athena` resources by default. These includes:
+This module does not configure logging. It outputs `web_acl_arn`, so you can attach `aws_wafv2_web_acl_logging_configuration` yourself. That gives you every option the resource supports:
 
-* an `Athena workgroup`
-* an `Athena database`
-* several `Athena queries`
-* and an S3 bucket where waf logs will be saved if activated.
+* any destination: S3 bucket, CloudWatch Logs group, or Kinesis Data Firehose (for example, for Parquet conversion)
+* `logging_filter` to keep or drop records by action or label
+* `redacted_fields` to hide headers, the query string, the URI path, or the method
 
-To activate waf logs set the `var.enable_logging` to `true` (`false` by default).
+```hcl
+resource "aws_wafv2_web_acl_logging_configuration" "waf" {
+  resource_arn            = module.waf.web_acl_arn
+  log_destination_configs = [aws_s3_bucket.waf_logs.arn] # name must start with aws-waf-logs-
 
-### Query WAF logs
+  logging_filter {
+    default_behavior = "DROP"
 
-In order to be able to query WAF logs saved on the S3 Bucket, we need to use the AWS Athena service:
+    filter {
+      behavior    = "KEEP"
+      requirement = "MEETS_ANY"
 
-* Once Logs have been activated we need to connect to Athena service via AWS console.
-* Select the correct workgroup
-* Here among the list of "Saved queries", you can find a query named "partition-projection-table-creation"
-* If a table with the same name already exists, please delete it
-* Set the query parameters as described in the query comments and run it
-* Now a partition table is available and queries can be executed against the WAF logs stored on S3
+      condition {
+        action_condition {
+          action = "BLOCK"
+        }
+      }
+    }
+  }
+}
+```
 
-Note: whenever WAF attachment changes, the partition projection table has to be deleted and recreated by updating the correct S3 bucket path. The table is created through the query partition-projection-table-creation
+[examples/logging](examples/logging) is a complete setup:
+
+* a Firehose stream that converts logs to Parquet in S3
+* a Glue table with partition projection
+* an Athena workgroup with saved queries (`examples/logging/athena_queries`)
+
+`waf_logs_table.sql.tftpl` in that folder is the Athena table for plain JSON logs delivered directly to S3.
+
+### Migrating from 9.x
+
+Versions before 10.0.0 created the logs bucket, the Athena resources, and the logging configuration inside the module. Upgrading without action **destroys the bucket and its logs** (`force_destroy = true`). To keep them, declare the resources in your own configuration and move the state with `moved` blocks:
+
+```hcl
+moved {
+  from = module.waf.aws_s3_bucket.logs[0]
+  to   = aws_s3_bucket.waf_logs
+}
+
+moved {
+  from = module.waf.aws_wafv2_web_acl_logging_configuration.logs[0]
+  to   = aws_wafv2_web_acl_logging_configuration.waf
+}
+```
+
+Do the same for any other resource you want to keep: `aws_s3_bucket_ownership_controls.logs`, `aws_s3_bucket_acl.logs`, `aws_s3_bucket_lifecycle_configuration.logs`, `aws_athena_workgroup.waf`, `aws_athena_database.waf`, and `aws_athena_named_query.*`. Run `terraform plan` and confirm it shows no destroys before you apply.
 
 ## How do you use this module?
 
@@ -123,37 +155,6 @@ If the `data.http.googlebot` structure throws errors the url can be overridden b
 
 Similar settings exist for `var.parsely_whitelist_config` and `var.k6_whitelist_config` as well.
 
-## How to setup parallel WAFs ?
-If you need to deploy more than one WAF in the same account, you can choose between letting each waf managing their own logs, or you can reuse an existing bucket and pass it as a parameter.
-
-If you do create a bucket for logs outside of this module, and use the alternative bucket, you need to set up the following resources on the bucket :
-```
-resource "aws_s3_bucket_ownership_controls" "logs" {
-  bucket = aws_s3_bucket.logs.id
-  rule {
-    object_ownership = "BucketOwnerPreferred"
-  }
-}
-
-resource "aws_s3_bucket_acl" "logs" {
-  bucket = aws_s3_bucket.logs.id
-  acl    = "private"
-
-  depends_on = [aws_s3_bucket_ownership_controls.logs]
-}
-
-resource "aws_s3_bucket_lifecycle_configuration" "logs" {
-  bucket = aws_s3_bucket.logs.id
-  rule {
-    id = "waf-logs"
-    expiration {
-      days = var.waf_logs_retention
-    }
-    status = "Enabled"
-  }
-}
-```
-
 <!-- BEGIN_TF_DOCS -->
 ## Requirements
 
@@ -166,7 +167,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "logs" {
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_aws"></a> [aws](#provider\_aws) | >= 6.14 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.69.1 |
 
 ## Modules
 
@@ -176,18 +177,6 @@ No modules.
 
 | Name | Type |
 | ---- | ---- |
-| [aws_athena_database.waf](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/athena_database) | resource |
-| [aws_athena_named_query.blocked_requests](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/athena_named_query) | resource |
-| [aws_athena_named_query.count_group_by](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/athena_named_query) | resource |
-| [aws_athena_named_query.first_logs_query](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/athena_named_query) | resource |
-| [aws_athena_named_query.per_ip_blocked_requests](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/athena_named_query) | resource |
-| [aws_athena_named_query.requests_per_client_ip](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/athena_named_query) | resource |
-| [aws_athena_named_query.waf_logs_table](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/athena_named_query) | resource |
-| [aws_athena_workgroup.waf](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/athena_workgroup) | resource |
-| [aws_s3_bucket.logs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket) | resource |
-| [aws_s3_bucket_acl.logs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_acl) | resource |
-| [aws_s3_bucket_lifecycle_configuration.logs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_lifecycle_configuration) | resource |
-| [aws_s3_bucket_ownership_controls.logs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/s3_bucket_ownership_controls) | resource |
 | [aws_wafv2_ip_set.whitelist](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_ip_set) | resource |
 | [aws_wafv2_regex_pattern_set.string](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_regex_pattern_set) | resource |
 | [aws_wafv2_rule_group.aws_managed_rule_labels](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_rule_group) | resource |
@@ -195,16 +184,12 @@ No modules.
 | [aws_wafv2_rule_group.country_rate_rules](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_rule_group) | resource |
 | [aws_wafv2_rule_group.whitelist](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_rule_group) | resource |
 | [aws_wafv2_web_acl.waf](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_web_acl) | resource |
-| [aws_wafv2_web_acl_logging_configuration.logs](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_web_acl_logging_configuration) | resource |
-| [aws_caller_identity.current](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
-| [aws_s3_bucket.log_bucket](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/s3_bucket) | data source |
 
 ## Inputs
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_allow_uri_path_string"></a> [allow\_uri\_path\_string](#input\_allow\_uri\_path\_string) | Allow (whitelist) requests whose URI path matches the given string, defining the positional constraint of the string. Matching requests are immediately allowed and skip all rules with a higher priority value. Set the priority low enough to take precedence over the rate-limiting rules you want to bypass. | <pre>list(object({<br/>    name                  = string<br/>    priority              = number<br/>    positional_constraint = optional(string, "EXACTLY")<br/>    search_string         = string<br/>  }))</pre> | `[]` | no |
-| <a name="input_alternative_logs_bucket_name"></a> [alternative\_logs\_bucket\_name](#input\_alternative\_logs\_bucket\_name) | Override the default bucket destination for waf logs. If 'deploy\_logs' is set to false, this variable must be set. | `string` | `null` | no |
 | <a name="input_anti_ddos_managed_rule_group"></a> [anti\_ddos\_managed\_rule\_group](#input\_anti\_ddos\_managed\_rule\_group) | Deploy the AWSManagedRulesAntiDDoSRuleSet managed rule group (https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-anti-ddos.html). Set to null to disable. With override\_action = "count" the group only counts and labels requests; set it to "none" to let the group block and challenge. | <pre>object({<br/>    priority                       = optional(number, 45)<br/>    override_action                = optional(string, "count")<br/>    sensitivity_to_block           = optional(string, "LOW")<br/>    challenge_usage                = optional(string, "ENABLED")<br/>    challenge_sensitivity          = optional(string, "HIGH")<br/>    exempt_uri_regular_expressions = optional(list(string), ["\\/api\\/|\\.(aac|avi|avif|css|gif|ico|jpe?g|js|json|m3u8|mp[34]|ogg|otf|pdf|png|svg|tiff?|ts|ttf|webm|webp|woff2?|xml)$"])<br/>  })</pre> | `null` | no |
 | <a name="input_aws_managed_rule_groups"></a> [aws\_managed\_rule\_groups](#input\_aws\_managed\_rule\_groups) | AWS Managed Rule Groups counting and labeling requests. The labels applied by these groups can be specified in aws\_managed\_rule\_labels to rate limit requests. Available groups are described here https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-list.html. Not applicable for var.waf\_scope = REGIONAL | <pre>list(object({<br/>    name     = string<br/>    priority = number<br/>  }))</pre> | <pre>[<br/>  {<br/>    "name": "AWSManagedRulesAnonymousIpList",<br/>    "priority": 50<br/>  },<br/>  {<br/>    "name": "AWSManagedRulesAmazonIpReputationList",<br/>    "priority": 51<br/>  }<br/>]</pre> | no |
 | <a name="input_aws_managed_rule_labels"></a> [aws\_managed\_rule\_labels](#input\_aws\_managed\_rule\_labels) | AWS Managed rules labels to rate limit. The group using this label must be specified in aws\_managed\_rule\_groups in order to apply the label to incoming requests. Not applicable for var.waf\_scope = REGIONAL | <pre>list(object({<br/>    name                 = string<br/>    labels               = list(string)<br/>    enable_rate_limiting = optional(bool, true)      # if false all requests will be directly blocked<br/>    limit                = optional(number, 500)     # only used if enable_rate_limiting = true<br/>    action               = optional(string, "block") # possible actions: count, block, captcha, challenge<br/>    immunity_seconds     = optional(number, 300)     # only used if action is captcha (for challenge it's not currently allowed in tf, see waf.tf for more details). Immunity time in seconds after successfully passing a challenge<br/>    priority             = number<br/>  }))</pre> | <pre>[<br/>  {<br/>    "labels": [<br/>      "awswaf:managed:aws:anonymous-ip-list:AnonymousIPList",<br/>      "awswaf:managed:aws:amazon-ip-list:AWSManagedIPReputationList",<br/>      "awswaf:managed:aws:amazon-ip-list:AWSManagedReconnaissanceList",<br/>      "awswaf:managed:aws:amazon-ip-list:AWSManagedIPDDoSList"<br/>    ],<br/>    "name": "aws_managed_rule_low_limit",<br/>    "priority": 60<br/>  },<br/>  {<br/>    "labels": [<br/>      "awswaf:managed:aws:anonymous-ip-list:HostingProviderIPList"<br/>    ],<br/>    "limit": 750,<br/>    "name": "aws_managed_rule_high_limit",<br/>    "priority": 61<br/>  }<br/>]</pre> | no |
@@ -217,15 +202,11 @@ No modules.
 | <a name="input_country_count_rules"></a> [country\_count\_rules](#input\_country\_count\_rules) | Enable the deployment of rules that count the requests from specific countries. The priority defined here is the one internal to the rule group. | <pre>list(object({<br/>    name          = string<br/>    limit         = number<br/>    priority      = number<br/>    country_codes = set(string)<br/>  }))</pre> | `[]` | no |
 | <a name="input_country_count_rules_priority"></a> [country\_count\_rules\_priority](#input\_country\_count\_rules\_priority) | Priority of the country\_count\_rules rule group rule in the WAF ACL. Must not conflict with any other rule priority. | `number` | `90` | no |
 | <a name="input_country_rates"></a> [country\_rates](#input\_country\_rates) | List of limits for groups of countries. | <pre>list(object({<br/>    name             = string<br/>    limit            = number<br/>    priority         = number<br/>    action           = optional(string, "block") # possible actions: block, captcha, challenge<br/>    immunity_seconds = optional(number, 300)     # only used if action is captcha (for challenge it's not currently allowed in tf, see waf.tf for more details). Immunity time in seconds after successfully passing a challenge<br/>    country_codes    = set(string)<br/>  }))</pre> | `[]` | no |
-| <a name="input_deploy_logs"></a> [deploy\_logs](#input\_deploy\_logs) | Enables the deployment of the s3 bucket to store the waf logs. Also enables the deployment of the athena pre-saved queries to easily access the logs generated by waf | `bool` | `true` | no |
-| <a name="input_enable_logging"></a> [enable\_logging](#input\_enable\_logging) | Enables or disable the logging (independent of the buckets/athena) | `bool` | `false` | no |
 | <a name="input_everybody_else_config"></a> [everybody\_else\_config](#input\_everybody\_else\_config) | Priority and limit for all country\_codes not covered by country\_rates. Set limit to 0 to disable the rule. | <pre>object({<br/>    limit    = optional(number, 0)<br/>    priority = optional(number, 80)<br/>  })</pre> | `{}` | no |
 | <a name="input_ip_whitelisting"></a> [ip\_whitelisting](#input\_ip\_whitelisting) | Map of configurations for whitelisting IP lists. Populate this using the ip\_list\_fetcher sub-module or with static CIDRs. Use 'insert\_header' to add custom headers to whitelisted requests (headers are prefixed automatically with `x-amzn-waf-`). | <pre>map(object({<br/>    ips                = list(string)<br/>    ip_address_version = string # possible values: IPV4, IPV6<br/>    priority           = number<br/>    insert_header      = optional(map(string), null)<br/>  }))</pre> | `{}` | no |
 | <a name="input_limit_search_requests_by_countries"></a> [limit\_search\_requests\_by\_countries](#input\_limit\_search\_requests\_by\_countries) | Limit requests on the path /search that comes from the specified list of country\_codes. Rule not deployed if list of countries is empty. | <pre>object({<br/>    priority      = optional(number, 2)<br/>    limit         = optional(number, 100)<br/>    country_codes = set(string)<br/>  })</pre> | <pre>{<br/>  "country_codes": [],<br/>  "limit": 100<br/>}</pre> | no |
 | <a name="input_logo_path"></a> [logo\_path](#input\_logo\_path) | Company logo path (for 429 pages) | `string` | `""` | no |
-| <a name="input_logs_bucket_name_override"></a> [logs\_bucket\_name\_override](#input\_logs\_bucket\_name\_override) | Override the default bucket name for waf logs. Default name: `aws-waf-logs-<lower(var.waf_scope)>-<data.aws_caller_identity.current.account_id>` | `string` | `null` | no |
 | <a name="input_rate_limit_failsafe_priority"></a> [rate\_limit\_failsafe\_priority](#input\_rate\_limit\_failsafe\_priority) | Priority of the rate\_limit\_everything\_apart\_from\_CH failsafe rule in the WAF ACL. Must not conflict with any other rule priority. | `number` | `42` | no |
-| <a name="input_waf_logs_retention"></a> [waf\_logs\_retention](#input\_waf\_logs\_retention) | Retention time (in days) of waf logs | `number` | `7` | no |
 | <a name="input_waf_name"></a> [waf\_name](#input\_waf\_name) | The name for WAF | `string` | `"cloudfront-waf"` | no |
 | <a name="input_waf_scope"></a> [waf\_scope](#input\_waf\_scope) | The scope of the deployed waf. Available options [CLOUDFRONT,REGIONAL] | `string` | `"CLOUDFRONT"` | no |
 | <a name="input_whitelist_group_priority"></a> [whitelist\_group\_priority](#input\_whitelist\_group\_priority) | Priority of the whitelist rule group rule in the WAF ACL. Must not conflict with any other rule priority. | `number` | `1` | no |
@@ -236,8 +217,6 @@ No modules.
 | Name | Description |
 | ---- | ----------- |
 | <a name="output_ip_set_ids"></a> [ip\_set\_ids](#output\_ip\_set\_ids) | Map of IP set name to ID created for the WAF |
-| <a name="output_logs_bucket_arn"></a> [logs\_bucket\_arn](#output\_logs\_bucket\_arn) | Logs bucket arn |
-| <a name="output_logs_bucket_name"></a> [logs\_bucket\_name](#output\_logs\_bucket\_name) | Logs bucket name |
 | <a name="output_web_acl_arn"></a> [web\_acl\_arn](#output\_web\_acl\_arn) | Web ACL arn |
 | <a name="output_web_acl_id"></a> [web\_acl\_id](#output\_web\_acl\_id) | WAF arn used with the cloudfront |
 <!-- END_TF_DOCS -->
