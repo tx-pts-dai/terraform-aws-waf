@@ -167,7 +167,7 @@ Similar settings exist for `var.parsely_whitelist_config` and `var.k6_whitelist_
 
 | Name | Version |
 | ---- | ------- |
-| <a name="provider_aws"></a> [aws](#provider\_aws) | 6.69.1 |
+| <a name="provider_aws"></a> [aws](#provider\_aws) | >= 6.14 |
 
 ## Modules
 

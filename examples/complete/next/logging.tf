@@ -4,7 +4,7 @@ data "aws_caller_identity" "current" {
 
 resource "aws_s3_bucket" "waf_logs" {
   provider      = aws.us
-  bucket        = "aws-waf-logs-waf-module-regression-example-${data.aws_caller_identity.current.account_id}"
+  bucket        = "aws-waf-logs-waf-module-regression-example-next-${data.aws_caller_identity.current.account_id}"
   force_destroy = true
 }
 
