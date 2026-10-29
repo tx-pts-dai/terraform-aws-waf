@@ -1,5 +1,22 @@
 # Changelog
 
+## [10.0.0]
+
+WAF logging moves out of the module. Configure it in your own code against the `web_acl_arn` output. This unlocks every `aws_wafv2_web_acl_logging_configuration` option: `logging_filter`, `redacted_fields`, and any destination (S3, CloudWatch Logs, or Firehose with Parquet conversion).
+
+### Breaking changes
+
+- Removed resources: the logs S3 bucket and its ownership controls, ACL, and lifecycle; the Athena workgroup, database, and named queries; `aws_wafv2_web_acl_logging_configuration`.
+- Removed variables: `enable_logging`, `deploy_logs`, `alternative_logs_bucket_name`, `logs_bucket_name_override`, `waf_logs_retention`.
+- Removed outputs: `logs_bucket_name`, `logs_bucket_arn`.
+- The `athena_queries/` directory moved to `examples/logging/athena_queries/`.
+
+Upgrading without action destroys the logs bucket and its contents. Follow "Migrating from 9.x" in the README: `moved` blocks in your root keep the existing resources.
+
+### Added
+
+- `examples/logging`: Firehose → S3 Parquet, Glue table with partition projection, Athena saved queries, and a logging filter with redacted fields.
+
 ## [8.0.0]
 
 This version introduces breaking changes to several variables to allow configurable WAF ACL priorities, removes built-in bot IP fetching in favour of the `ip_list_fetcher` submodule. **All users must update their Terraform configurations** when upgrading to this version.
