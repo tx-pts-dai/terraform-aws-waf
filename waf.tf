@@ -40,10 +40,20 @@ resource "aws_wafv2_regex_pattern_set" "string" {
 }
 
 resource "aws_wafv2_web_acl" "waf" {
-  name  = var.waf_name
-  scope = var.waf_scope
+  name          = var.waf_name
+  scope         = var.waf_scope
+  token_domains = var.token_domains
   default_action {
     allow {}
+  }
+
+  dynamic "challenge_config" {
+    for_each = var.challenge_immunity_seconds != null ? [1] : []
+    content {
+      immunity_time_property {
+        immunity_time = var.challenge_immunity_seconds
+      }
+    }
   }
   visibility_config {
     cloudwatch_metrics_enabled = true
@@ -154,8 +164,9 @@ resource "aws_wafv2_web_acl" "waf" {
       }
       statement {
         rate_based_statement {
-          aggregate_key_type = "IP"
-          limit              = var.limit_search_requests_by_countries.limit
+          aggregate_key_type    = "IP"
+          limit                 = var.limit_search_requests_by_countries.limit
+          evaluation_window_sec = var.limit_search_requests_by_countries.evaluation_window_sec
           scope_down_statement {
             and_statement {
               statement {
@@ -534,6 +545,34 @@ resource "aws_wafv2_web_acl" "waf" {
         managed_rule_group_statement {
           name        = "AWSManagedRulesAntiDDoSRuleSet"
           vendor_name = "AWS"
+          dynamic "rule_action_override" {
+            for_each = rule.value.rule_action_overrides
+            content {
+              name = rule_action_override.key
+              action_to_use {
+                dynamic "allow" {
+                  for_each = rule_action_override.value == "allow" ? [1] : []
+                  content {}
+                }
+                dynamic "block" {
+                  for_each = rule_action_override.value == "block" ? [1] : []
+                  content {}
+                }
+                dynamic "count" {
+                  for_each = rule_action_override.value == "count" ? [1] : []
+                  content {}
+                }
+                dynamic "challenge" {
+                  for_each = rule_action_override.value == "challenge" ? [1] : []
+                  content {}
+                }
+                dynamic "captcha" {
+                  for_each = rule_action_override.value == "captcha" ? [1] : []
+                  content {}
+                }
+              }
+            }
+          }
           managed_rule_group_configs {
             aws_managed_rules_anti_ddos_rule_set {
               sensitivity_to_block = rule.value.sensitivity_to_block
@@ -598,8 +637,9 @@ resource "aws_wafv2_web_acl" "waf" {
       }
       statement {
         rate_based_statement {
-          aggregate_key_type = "IP"
-          limit              = var.everybody_else_config.limit
+          aggregate_key_type    = "IP"
+          limit                 = var.everybody_else_config.limit
+          evaluation_window_sec = var.everybody_else_config.evaluation_window_sec
 
           scope_down_statement {
             not_statement {
@@ -736,8 +776,9 @@ resource "aws_wafv2_rule_group" "country_rate_rules" {
       }
       statement {
         rate_based_statement {
-          aggregate_key_type = "IP"
-          limit              = rule.value.limit
+          aggregate_key_type    = "IP"
+          limit                 = rule.value.limit
+          evaluation_window_sec = rule.value.evaluation_window_sec
           scope_down_statement {
             geo_match_statement {
               country_codes = rule.value.country_codes
@@ -815,17 +856,6 @@ resource "aws_wafv2_rule_group" "aws_managed_rule_labels" {
           }
         }
       }
-      # dynamic "challenge_config" {
-      # # available in the console but seems to be not supported on tf (?)
-      # # even if is mentioned in the docs https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_web_acl#challenge_config-block
-      # # and is in an open issue https://github.com/hashicorp/terraform-provider-aws/issues/29071
-      #   for_each = rule.value.action == "challenge" ? [1] : []
-      #   content {
-      #     immunity_time_property {
-      #       immunity_time = rule.value.immunity_seconds
-      #     }
-      #   }
-      # }
       statement {
         dynamic "or_statement" {
           # multiple labels - or_statement handles the case of more than one label in the rule (only when rate limiting is disabled)

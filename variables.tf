@@ -105,7 +105,7 @@ variable "aws_managed_rule_labels" {
     enable_rate_limiting = optional(bool, true)      # if false all requests will be directly blocked
     limit                = optional(number, 500)     # only used if enable_rate_limiting = true
     action               = optional(string, "block") # possible actions: count, block, captcha, challenge
-    immunity_seconds     = optional(number, 300)     # only used if action is captcha (for challenge it's not currently allowed in tf, see waf.tf for more details). Immunity time in seconds after successfully passing a challenge
+    immunity_seconds     = optional(number, 300)     # only used if action is captcha. Challenge immunity is set web ACL wide with var.challenge_immunity_seconds
     priority             = number
   }))
   default = [
@@ -150,12 +150,13 @@ variable "country_rates" {
   default     = []
   description = "List of limits for groups of countries."
   type = list(object({
-    name             = string
-    limit            = number
-    priority         = number
-    action           = optional(string, "block") # possible actions: block, captcha, challenge
-    immunity_seconds = optional(number, 300)     # only used if action is captcha (for challenge it's not currently allowed in tf, see waf.tf for more details). Immunity time in seconds after successfully passing a challenge
-    country_codes    = set(string)
+    name                  = string
+    limit                 = number
+    priority              = number
+    action                = optional(string, "block") # possible actions: block, captcha, challenge
+    immunity_seconds      = optional(number, 300)     # only used if action is captcha. Challenge immunity is set web ACL wide with var.challenge_immunity_seconds
+    evaluation_window_sec = optional(number, 300)
+    country_codes         = set(string)
   }))
   # Example
   # [
@@ -177,15 +178,24 @@ variable "country_rates" {
   #     priority     = 35
   #   }
   # ]
+  validation {
+    condition     = alltrue([for r in var.country_rates : contains([60, 120, 300, 600], r.evaluation_window_sec)])
+    error_message = "country_rates[*].evaluation_window_sec must be one of 60, 120, 300 or 600."
+  }
 }
 
 variable "everybody_else_config" {
   description = "Priority and limit for all country_codes not covered by country_rates. Set limit to 0 to disable the rule."
   type = object({
-    limit    = optional(number, 0)
-    priority = optional(number, 80)
+    limit                 = optional(number, 0)
+    priority              = optional(number, 80)
+    evaluation_window_sec = optional(number, 300)
   })
   default = {}
+  validation {
+    condition     = contains([60, 120, 300, 600], var.everybody_else_config.evaluation_window_sec)
+    error_message = "everybody_else_config.evaluation_window_sec must be one of 60, 120, 300 or 600."
+  }
 }
 
 variable "rate_limit_failsafe_priority" {
@@ -201,10 +211,15 @@ variable "limit_search_requests_by_countries" {
   }
   description = "Limit requests on the path /search that comes from the specified list of country_codes. Rule not deployed if list of countries is empty."
   type = object({
-    priority      = optional(number, 2)
-    limit         = optional(number, 100)
-    country_codes = set(string)
+    priority              = optional(number, 2)
+    limit                 = optional(number, 100)
+    evaluation_window_sec = optional(number, 300)
+    country_codes         = set(string)
   })
+  validation {
+    condition     = contains([60, 120, 300, 600], var.limit_search_requests_by_countries.evaluation_window_sec)
+    error_message = "limit_search_requests_by_countries.evaluation_window_sec must be one of 60, 120, 300 or 600."
+  }
 }
 
 variable "block_uri_path_string" {
@@ -343,14 +358,15 @@ variable "country_count_rules_priority" {
 }
 
 variable "anti_ddos_managed_rule_group" {
-  description = "Deploy the AWSManagedRulesAntiDDoSRuleSet managed rule group (https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-anti-ddos.html). Set to null to disable. With override_action = \"count\" the group only counts and labels requests; set it to \"none\" to let the group block and challenge."
+  description = "Deploy the AWSManagedRulesAntiDDoSRuleSet managed rule group (https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-anti-ddos.html). Set to null to disable. With override_action = \"count\" the group only counts and labels requests; set it to \"none\" to let the group block and challenge. rule_action_overrides maps a rule of the group to an action, e.g. { ChallengeAllDuringEvent = \"count\" } so that only requests at or above challenge_sensitivity are challenged during an event."
   type = object({
     priority                       = optional(number, 45)
     override_action                = optional(string, "count")
     sensitivity_to_block           = optional(string, "LOW")
     challenge_usage                = optional(string, "ENABLED")
     challenge_sensitivity          = optional(string, "HIGH")
-    exempt_uri_regular_expressions = optional(list(string), ["\\/api\\/|\\.(aac|avi|avif|css|gif|ico|jpe?g|js|json|m3u8|mp[34]|ogg|otf|pdf|png|svg|tiff?|ts|ttf|webm|webp|woff2?|xml)$"])
+    rule_action_overrides          = optional(map(string), {})
+    exempt_uri_regular_expressions = optional(list(string), ["\\/api\\/", "(?i)\\.(aac|avi|avif|css|gif|ico|jpe?g|js|json|m3u8|map|mjs|mp[34]|ogg|otf|pdf|png|rss|svg|tiff?|ts|ttf|txt|webm|webp|woff2?|xml)$"])
   })
   default = null
   validation {
@@ -366,7 +382,30 @@ variable "anti_ddos_managed_rule_group" {
     error_message = "anti_ddos_managed_rule_group.challenge_usage must be ENABLED or DISABLED."
   }
   validation {
+    condition = var.anti_ddos_managed_rule_group == null || alltrue([
+      for rule, action in try(var.anti_ddos_managed_rule_group.rule_action_overrides, {}) :
+      contains(["ChallengeAllDuringEvent", "ChallengeDDoSRequests", "DDoSRequests"], rule) && contains(["allow", "block", "count", "challenge", "captcha"], action)
+    ])
+    error_message = "anti_ddos_managed_rule_group.rule_action_overrides keys must be ChallengeAllDuringEvent, ChallengeDDoSRequests or DDoSRequests and values one of allow, block, count, challenge, captcha."
+  }
+  validation {
     condition     = var.anti_ddos_managed_rule_group == null || length(try(var.anti_ddos_managed_rule_group.exempt_uri_regular_expressions, [])) <= 5
     error_message = "anti_ddos_managed_rule_group.exempt_uri_regular_expressions can have a max length of 5."
+  }
+}
+
+variable "token_domains" {
+  description = "Domains that accept AWS WAF challenge and CAPTCHA tokens issued for this web ACL, so a token obtained on one protected host is valid on the others (https://docs.aws.amazon.com/waf/latest/developerguide/waf-tokens-domains.html). Null keeps the default (only the host that issued the token)."
+  type        = list(string)
+  default     = null
+}
+
+variable "challenge_immunity_seconds" {
+  description = "Web ACL wide immunity time, in seconds, of a solved challenge (silent challenge of the Anti-DDoS group and challenge rule actions). Null keeps the AWS default of 300."
+  type        = number
+  default     = null
+  validation {
+    condition     = var.challenge_immunity_seconds == null || try(var.challenge_immunity_seconds >= 60 && var.challenge_immunity_seconds <= 259200, false)
+    error_message = "challenge_immunity_seconds must be between 60 and 259200."
   }
 }
