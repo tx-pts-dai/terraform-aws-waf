@@ -36,6 +36,8 @@ module "googlebot_ips" {
 }
 
 locals {
+  name_prefix = "waf-ex-${substr(sha1(terraform.workspace), 0, 8)}"
+
   ip_whitelisting = {
     "googlebot_ipv4" = {
       ips                = module.googlebot_ips.ipv4_addresses
@@ -91,7 +93,7 @@ module "waf" {
   providers = {
     aws = aws.us
   }
-  waf_name           = "waf-module-regression-example"
+  waf_name           = local.name_prefix
   waf_scope          = "CLOUDFRONT"
   waf_logs_retention = 7
   ip_whitelisting    = local.ip_whitelisting
@@ -187,7 +189,7 @@ module "waf_parallel" {
     aws = aws.us
   }
 
-  waf_name           = "waf-module-regression-example-parallel"
+  waf_name           = "${local.name_prefix}-parallel"
   waf_scope          = "CLOUDFRONT"
   waf_logs_retention = 7
 
