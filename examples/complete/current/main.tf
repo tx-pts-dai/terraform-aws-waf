@@ -27,7 +27,7 @@ provider "aws" {
 
 module "googlebot_ips" {
   source  = "tx-pts-dai/waf/aws//modules/ip_list_fetcher"
-  version = "8.3.0"
+  version = "9.0.0"
 
   url      = "https://developers.google.com/search/apis/ipranges/googlebot.json"
   root_key = "prefixes"
@@ -89,7 +89,7 @@ locals {
 
 module "waf" {
   source  = "tx-pts-dai/waf/aws"
-  version = "8.3.0"
+  version = "9.0.0"
   providers = {
     aws = aws.us
   }
@@ -184,7 +184,7 @@ module "waf" {
 
 module "waf_parallel" {
   source  = "tx-pts-dai/waf/aws"
-  version = "8.3.0"
+  version = "9.0.0"
   providers = {
     aws = aws.us
   }
