@@ -111,9 +111,13 @@ module "waf" {
     }
   }
   anti_ddos_managed_rule_group = {
-    override_action      = "count"
-    sensitivity_to_block = "LOW"
+    override_action       = "count"
+    sensitivity_to_block  = "LOW"
+    challenge_sensitivity = "MEDIUM"
+    rule_action_overrides = { ChallengeAllDuringEvent = "count" }
   }
+  token_domains              = ["example.com", "example.org"]
+  challenge_immunity_seconds = 3600
   aws_managed_rule_groups = [
     {
       name     = "AWSManagedRulesAnonymousIpList"
@@ -174,8 +178,9 @@ module "waf" {
     }
   ]
   limit_search_requests_by_countries = {
-    limit         = 100
-    country_codes = ["CH"]
+    limit                 = 100
+    evaluation_window_sec = 60
+    country_codes         = ["CH"]
   }
   everybody_else_config = { limit = 0 }
   block_uri_path_string = []

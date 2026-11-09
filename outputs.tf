@@ -17,3 +17,8 @@ output "ip_set_ids" {
   } }
   description = "Map of IP set name to ID created for the WAF"
 }
+
+output "application_integration_url" {
+  value       = aws_wafv2_web_acl.waf.application_integration_url
+  description = "URL of the AWS WAF JavaScript SDK integration for this web ACL, used by clients to acquire challenge tokens"
+}
