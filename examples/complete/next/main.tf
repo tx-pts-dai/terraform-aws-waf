@@ -35,6 +35,8 @@ module "googlebot_ips" {
 }
 
 locals {
+  name_prefix = "waf-ex-${substr(sha1(terraform.workspace), 0, 8)}"
+
   ip_whitelisting = {
     "tx_group" = {
       ip_address_version = "IPV4"
@@ -89,10 +91,9 @@ module "waf" {
   providers = {
     aws = aws.us
   }
-  waf_name           = "waf-module-regression-example"
-  waf_scope          = "CLOUDFRONT"
-  waf_logs_retention = 7
-  ip_whitelisting    = local.ip_whitelisting
+  waf_name        = local.name_prefix
+  waf_scope       = "CLOUDFRONT"
+  ip_whitelisting = local.ip_whitelisting
   blocked_headers = {
     priority = 0
     rules = [
@@ -197,9 +198,8 @@ module "waf" {
       search_string         = "/static-assets/"
     },
   ]
-  block_articles            = []
-  block_regex_pattern       = {}
-  logs_bucket_name_override = null
+  block_articles      = []
+  block_regex_pattern = {}
 }
 
 module "waf_parallel" {
@@ -208,9 +208,8 @@ module "waf_parallel" {
     aws = aws.us
   }
 
-  waf_name           = "waf-module-regression-example-parallel"
-  waf_scope          = "CLOUDFRONT"
-  waf_logs_retention = 7
+  waf_name  = "${local.name_prefix}-parallel"
+  waf_scope = "CLOUDFRONT"
 
   ip_whitelisting = local.ip_whitelisting
   whitelisted_headers = {
@@ -287,12 +286,8 @@ module "waf_parallel" {
     limit         = 100
     country_codes = ["CH"]
   }
-  block_uri_path_string        = []
-  allow_uri_path_string        = []
-  block_articles               = []
-  block_regex_pattern          = {}
-  logs_bucket_name_override    = null
-  enable_logging               = true
-  deploy_logs                  = false
-  alternative_logs_bucket_name = module.waf.logs_bucket_name
+  block_uri_path_string = []
+  allow_uri_path_string = []
+  block_articles        = []
+  block_regex_pattern   = {}
 }
