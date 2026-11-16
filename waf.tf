@@ -39,6 +39,22 @@ resource "aws_wafv2_regex_pattern_set" "string" {
   }
 }
 
+resource "aws_wafv2_regex_pattern_set" "uri_path_regex_rules" {
+  for_each = { for rule in var.uri_path_regex_rules : rule.name => rule }
+  name     = "${var.waf_name}_${each.key}"
+  scope    = var.waf_scope
+
+  dynamic "regular_expression" {
+    for_each = each.value.regex_strings
+    content {
+      regex_string = regular_expression.value
+    }
+  }
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
 resource "aws_wafv2_web_acl" "waf" {
   name          = var.waf_name
   scope         = var.waf_scope
@@ -394,6 +410,121 @@ resource "aws_wafv2_web_acl" "waf" {
       visibility_config {
         cloudwatch_metrics_enabled = true
         metric_name                = rule.key
+        sampled_requests_enabled   = true
+      }
+    }
+  }
+
+  dynamic "rule" {
+    for_each = { for rule in var.uri_path_regex_rules : rule.name => rule }
+    content {
+      name     = "${var.waf_name}_${rule.key}"
+      priority = rule.value.priority
+
+      action {
+        dynamic "block" {
+          for_each = rule.value.action == "block" ? [1] : []
+          content {}
+        }
+        dynamic "count" {
+          for_each = rule.value.action == "count" ? [1] : []
+          content {}
+        }
+        dynamic "captcha" {
+          for_each = rule.value.action == "captcha" ? [1] : []
+          content {}
+        }
+        dynamic "challenge" {
+          for_each = rule.value.action == "challenge" ? [1] : []
+          content {}
+        }
+      }
+
+      statement {
+        dynamic "and_statement" {
+          for_each = rule.value.method != null ? [1] : []
+          content {
+            statement {
+              byte_match_statement {
+                search_string         = upper(rule.value.method)
+                positional_constraint = "EXACTLY"
+                field_to_match {
+                  method {}
+                }
+                text_transformation {
+                  priority = 0
+                  type     = "NONE"
+                }
+              }
+            }
+            statement {
+              dynamic "not_statement" {
+                for_each = rule.value.negate ? [1] : []
+                content {
+                  statement {
+                    regex_pattern_set_reference_statement {
+                      arn = aws_wafv2_regex_pattern_set.uri_path_regex_rules[rule.key].arn
+                      field_to_match {
+                        uri_path {}
+                      }
+                      text_transformation {
+                        priority = 0
+                        type     = "NORMALIZE_PATH"
+                      }
+                    }
+                  }
+                }
+              }
+              dynamic "regex_pattern_set_reference_statement" {
+                for_each = rule.value.negate ? [] : [1]
+                content {
+                  arn = aws_wafv2_regex_pattern_set.uri_path_regex_rules[rule.key].arn
+                  field_to_match {
+                    uri_path {}
+                  }
+                  text_transformation {
+                    priority = 0
+                    type     = "NORMALIZE_PATH"
+                  }
+                }
+              }
+            }
+          }
+        }
+        dynamic "not_statement" {
+          for_each = rule.value.method == null && rule.value.negate ? [1] : []
+          content {
+            statement {
+              regex_pattern_set_reference_statement {
+                arn = aws_wafv2_regex_pattern_set.uri_path_regex_rules[rule.key].arn
+                field_to_match {
+                  uri_path {}
+                }
+                text_transformation {
+                  priority = 0
+                  type     = "NORMALIZE_PATH"
+                }
+              }
+            }
+          }
+        }
+        dynamic "regex_pattern_set_reference_statement" {
+          for_each = rule.value.method == null && !rule.value.negate ? [1] : []
+          content {
+            arn = aws_wafv2_regex_pattern_set.uri_path_regex_rules[rule.key].arn
+            field_to_match {
+              uri_path {}
+            }
+            text_transformation {
+              priority = 0
+              type     = "NORMALIZE_PATH"
+            }
+          }
+        }
+      }
+      visibility_config {
+        cloudwatch_metrics_enabled = true
+        metric_name                = "${var.waf_name}_${rule.key}"
         sampled_requests_enabled   = true
       }
     }

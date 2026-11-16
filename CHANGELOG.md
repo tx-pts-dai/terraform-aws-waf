@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- `uri_path_regex_rules`: rules that match the normalized URI path against a regex pattern set, optionally for one HTTP method, with `negate` to match paths outside every regex. Action block, count, captcha or challenge.
+
 ## [10.0.0]
 
 WAF logging moves out of the module. Configure it in your own code against the `web_acl_arn` output. This unlocks every `aws_wafv2_web_acl_logging_configuration` option: `logging_filter`, `redacted_fields`, and any destination (S3, CloudWatch Logs, or Firehose with Parquet conversion).

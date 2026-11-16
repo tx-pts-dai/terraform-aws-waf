@@ -17,6 +17,7 @@ It's designed to propose the following rules:
 | defined in `var.block_uri_path_string[*].priority` | block_uri_path_string | |
 | defined in `var.block_articles[*].priority` | block_articles | |
 | defined in `var.block_regex_pattern[*].priority` | block_regex_pattern | |
+| defined in `var.uri_path_regex_rules[*].priority` | uri_path_regex_rules | Matches the normalized URI path against a regex pattern set, optionally for one HTTP method only. `negate = true` matches paths outside every regex. Action block, count, captcha or challenge |
 | `var.rate_limit_failsafe_priority` (42) | Rate_limit_everything_apart_from_CH | Failsafe switch in case of attack. Change "count" to "block" in the console to rate limit all countries except Switzerland |
 | `var.count_requests_from_ch.priority` (43) | count_requests_from_ch | |
 | `var.whitelisted_headers.priority` (44) | whitelist_based_on_headers | |
@@ -185,6 +186,7 @@ No modules.
 | ---- | ---- |
 | [aws_wafv2_ip_set.whitelist](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_ip_set) | resource |
 | [aws_wafv2_regex_pattern_set.string](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_regex_pattern_set) | resource |
+| [aws_wafv2_regex_pattern_set.uri_path_regex_rules](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_regex_pattern_set) | resource |
 | [aws_wafv2_rule_group.aws_managed_rule_labels](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_rule_group) | resource |
 | [aws_wafv2_rule_group.country_count_rules](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_rule_group) | resource |
 | [aws_wafv2_rule_group.country_rate_rules](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/wafv2_rule_group) | resource |
@@ -215,6 +217,7 @@ No modules.
 | <a name="input_logo_path"></a> [logo\_path](#input\_logo\_path) | Company logo path (for 429 pages) | `string` | `""` | no |
 | <a name="input_rate_limit_failsafe_priority"></a> [rate\_limit\_failsafe\_priority](#input\_rate\_limit\_failsafe\_priority) | Priority of the rate\_limit\_everything\_apart\_from\_CH failsafe rule in the WAF ACL. Must not conflict with any other rule priority. | `number` | `42` | no |
 | <a name="input_token_domains"></a> [token\_domains](#input\_token\_domains) | Domains that accept AWS WAF challenge and CAPTCHA tokens issued for this web ACL, so a token obtained on one protected host is valid on the others (https://docs.aws.amazon.com/waf/latest/developerguide/waf-tokens-domains.html). Null keeps the default (only the host that issued the token). | `list(string)` | `null` | no |
+| <a name="input_uri_path_regex_rules"></a> [uri\_path\_regex\_rules](#input\_uri\_path\_regex\_rules) | Rules that match the normalized URI path against a regex pattern set, optionally only for one HTTP method. With negate = true a rule matches requests whose path matches none of the regexes, e.g. a temporary rule that challenges every GET outside the Anti-DDoS exemptions to preview "challenge all during event". | <pre>list(object({<br/>    name          = string<br/>    priority      = number<br/>    action        = optional(string, "block")<br/>    method        = optional(string)<br/>    regex_strings = list(string)<br/>    negate        = optional(bool, false)<br/>  }))</pre> | `[]` | no |
 | <a name="input_waf_name"></a> [waf\_name](#input\_waf\_name) | The name for WAF | `string` | `"cloudfront-waf"` | no |
 | <a name="input_waf_scope"></a> [waf\_scope](#input\_waf\_scope) | The scope of the deployed waf. Available options [CLOUDFRONT,REGIONAL] | `string` | `"CLOUDFRONT"` | no |
 | <a name="input_whitelist_group_priority"></a> [whitelist\_group\_priority](#input\_whitelist\_group\_priority) | Priority of the whitelist rule group rule in the WAF ACL. Must not conflict with any other rule priority. | `number` | `1` | no |

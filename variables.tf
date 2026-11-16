@@ -378,3 +378,28 @@ variable "challenge_immunity_seconds" {
     error_message = "challenge_immunity_seconds must be between 60 and 259200."
   }
 }
+
+variable "uri_path_regex_rules" {
+  description = "Rules that match the normalized URI path against a regex pattern set, optionally only for one HTTP method. With negate = true a rule matches requests whose path matches none of the regexes, e.g. a temporary rule that challenges every GET outside the Anti-DDoS exemptions to preview \"challenge all during event\"."
+  type = list(object({
+    name          = string
+    priority      = number
+    action        = optional(string, "block")
+    method        = optional(string)
+    regex_strings = list(string)
+    negate        = optional(bool, false)
+  }))
+  default = []
+  validation {
+    condition     = alltrue([for rule in var.uri_path_regex_rules : contains(["block", "count", "captcha", "challenge"], rule.action)])
+    error_message = "uri_path_regex_rules[*].action must be block, count, captcha or challenge."
+  }
+  validation {
+    condition     = alltrue([for rule in var.uri_path_regex_rules : length(rule.regex_strings) >= 1 && length(rule.regex_strings) <= 10 && alltrue([for regex in rule.regex_strings : length(regex) <= 200])])
+    error_message = "uri_path_regex_rules[*].regex_strings must hold 1 to 10 regexes of at most 200 characters (AWS regex pattern set limits)."
+  }
+  validation {
+    condition     = length(distinct([for rule in var.uri_path_regex_rules : rule.name])) == length(var.uri_path_regex_rules)
+    error_message = "uri_path_regex_rules[*].name must be unique."
+  }
+}
