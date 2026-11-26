@@ -667,6 +667,57 @@ resource "aws_wafv2_web_acl" "waf" {
     }
   }
 
+  dynamic "rule" {
+    for_each = { for r in var.country_aggregate_rules : r.name => r }
+    content {
+      name     = "${var.waf_name}_${rule.value.name}"
+      priority = rule.value.priority
+      action {
+        dynamic "count" {
+          for_each = rule.value.action == "count" ? [1] : []
+          content {}
+        }
+        dynamic "challenge" {
+          for_each = rule.value.action == "challenge" ? [1] : []
+          content {}
+        }
+        dynamic "block" {
+          for_each = rule.value.action == "block" ? [1] : []
+          content {
+            custom_response {
+              custom_response_body_key = local.rate_limit_response_key
+              response_code            = 429
+            }
+          }
+        }
+      }
+      statement {
+        rate_based_statement {
+          aggregate_key_type    = "CONSTANT"
+          limit                 = rule.value.limit
+          evaluation_window_sec = rule.value.evaluation_window_sec
+          scope_down_statement {
+            geo_match_statement {
+              country_codes = rule.value.country_codes
+              dynamic "forwarded_ip_config" {
+                for_each = var.waf_scope == "REGIONAL" ? [1] : []
+                content {
+                  header_name       = "X-Forwarded-For"
+                  fallback_behavior = "MATCH"
+                }
+              }
+            }
+          }
+        }
+      }
+      visibility_config {
+        cloudwatch_metrics_enabled = true
+        metric_name                = "${var.waf_name}_${rule.value.name}"
+        sampled_requests_enabled   = true
+      }
+    }
+  }
+
   rule {
     name     = "${var.waf_name}_aws_managed_rule_labels"
     priority = var.aws_managed_rule_labels_priority

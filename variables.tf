@@ -326,6 +326,39 @@ variable "country_count_rules_priority" {
   default     = 90
 }
 
+variable "country_aggregate_rules" {
+  description = "Rate-based rules that count all requests from a group of countries together (aggregate key CONSTANT) instead of per IP. While the combined rate is above the limit, the action applies to every request from those countries. Each rule is placed directly in the web ACL at its priority. Countries listed here are not excluded from everybody_else_config."
+  type = list(object({
+    name                  = string
+    limit                 = number
+    priority              = number
+    country_codes         = set(string)
+    action                = optional(string, "count") # count, challenge or block
+    evaluation_window_sec = optional(number, 300)
+  }))
+  default = []
+  # Example
+  # [
+  #   { name          = "aggregate_CN"
+  #     limit         = 5000
+  #     country_codes = ["CN"]
+  #     priority      = 81
+  #   }
+  # ]
+  validation {
+    condition     = alltrue([for r in var.country_aggregate_rules : contains(["count", "challenge", "block"], r.action)])
+    error_message = "country_aggregate_rules[*].action must be one of count, challenge or block."
+  }
+  validation {
+    condition     = alltrue([for r in var.country_aggregate_rules : contains([60, 120, 300, 600], r.evaluation_window_sec)])
+    error_message = "country_aggregate_rules[*].evaluation_window_sec must be one of 60, 120, 300 or 600."
+  }
+  validation {
+    condition     = alltrue([for r in var.country_aggregate_rules : r.limit >= 10])
+    error_message = "country_aggregate_rules[*].limit must be at least 10."
+  }
+}
+
 variable "anti_ddos_managed_rule_group" {
   description = "Deploy the AWSManagedRulesAntiDDoSRuleSet managed rule group (https://docs.aws.amazon.com/waf/latest/developerguide/aws-managed-rule-groups-anti-ddos.html). Set to null to disable. With override_action = \"count\" the group only counts and labels requests; set it to \"none\" to let the group block and challenge. rule_action_overrides maps a rule of the group to an action, e.g. { ChallengeAllDuringEvent = \"count\" } so that only requests at or above challenge_sensitivity are challenged during an event."
   type = object({

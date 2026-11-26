@@ -177,6 +177,14 @@ module "waf" {
       priority      = 91
     }
   ]
+  country_aggregate_rules = [
+    {
+      name          = "aggregate_CN"
+      limit         = 5000
+      country_codes = ["CN"]
+      priority      = 81
+    }
+  ]
   limit_search_requests_by_countries = {
     limit                 = 100
     evaluation_window_sec = 60
