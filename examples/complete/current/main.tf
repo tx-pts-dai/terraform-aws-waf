@@ -27,7 +27,7 @@ provider "aws" {
 
 module "googlebot_ips" {
   source  = "tx-pts-dai/waf/aws//modules/ip_list_fetcher"
-  version = "9.0.0"
+  version = "10.0.0"
 
   url      = "https://developers.google.com/search/apis/ipranges/googlebot.json"
   root_key = "prefixes"
@@ -89,14 +89,13 @@ locals {
 
 module "waf" {
   source  = "tx-pts-dai/waf/aws"
-  version = "9.0.0"
+  version = "10.0.0"
   providers = {
     aws = aws.us
   }
-  waf_name           = local.name_prefix
-  waf_scope          = "CLOUDFRONT"
-  waf_logs_retention = 7
-  ip_whitelisting    = local.ip_whitelisting
+  waf_name        = local.name_prefix
+  waf_scope       = "CLOUDFRONT"
+  ip_whitelisting = local.ip_whitelisting
   blocked_headers = {
     rules = [
       {
@@ -175,23 +174,21 @@ module "waf" {
     limit         = 100
     country_codes = ["CH"]
   }
-  everybody_else_config     = { limit = 0 }
-  block_uri_path_string     = []
-  block_articles            = []
-  block_regex_pattern       = {}
-  logs_bucket_name_override = null
+  everybody_else_config = { limit = 0 }
+  block_uri_path_string = []
+  block_articles        = []
+  block_regex_pattern   = {}
 }
 
 module "waf_parallel" {
   source  = "tx-pts-dai/waf/aws"
-  version = "9.0.0"
+  version = "10.0.0"
   providers = {
     aws = aws.us
   }
 
-  waf_name           = "${local.name_prefix}-parallel"
-  waf_scope          = "CLOUDFRONT"
-  waf_logs_retention = 7
+  waf_name  = "${local.name_prefix}-parallel"
+  waf_scope = "CLOUDFRONT"
 
   ip_whitelisting = local.ip_whitelisting
   whitelisted_headers = {
@@ -264,11 +261,7 @@ module "waf_parallel" {
     limit         = 100
     country_codes = ["CH"]
   }
-  block_uri_path_string        = []
-  block_articles               = []
-  block_regex_pattern          = {}
-  logs_bucket_name_override    = null
-  enable_logging               = true
-  deploy_logs                  = false
-  alternative_logs_bucket_name = module.waf.logs_bucket_name
+  block_uri_path_string = []
+  block_articles        = []
+  block_regex_pattern   = {}
 }
