@@ -681,6 +681,10 @@ resource "aws_wafv2_web_acl" "waf" {
           for_each = rule.value.action == "challenge" ? [1] : []
           content {}
         }
+        dynamic "captcha" {
+          for_each = rule.value.action == "captcha" ? [1] : []
+          content {}
+        }
         dynamic "block" {
           for_each = rule.value.action == "block" ? [1] : []
           content {
@@ -688,6 +692,14 @@ resource "aws_wafv2_web_acl" "waf" {
               custom_response_body_key = local.rate_limit_response_key
               response_code            = 429
             }
+          }
+        }
+      }
+      dynamic "captcha_config" {
+        for_each = rule.value.action == "captcha" ? [1] : []
+        content {
+          immunity_time_property {
+            immunity_time = rule.value.immunity_seconds
           }
         }
       }

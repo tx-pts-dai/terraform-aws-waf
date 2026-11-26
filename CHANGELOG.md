@@ -4,7 +4,7 @@
 
 ### Added
 
-- `country_aggregate_rules`: rate-based rules that count all requests from a group of countries together (aggregate key `CONSTANT`) instead of per IP, with action `count` (default), `challenge` or `block`. Placed directly in the Web ACL; the countries stay subject to `everybody_else_config`.
+- `country_aggregate_rules`: rate-based rules that count all requests from a group of countries together (aggregate key `CONSTANT`) instead of per IP, with action `count` (default), `challenge`, `captcha` (with `immunity_seconds`, default 300) or `block`. Placed directly in the Web ACL; the countries stay subject to `everybody_else_config`.
 
 ## [10.0.0]
 

@@ -183,6 +183,14 @@ module "waf" {
       limit         = 5000
       country_codes = ["CN"]
       priority      = 81
+    },
+    {
+      name             = "aggregate_RU_KP"
+      limit            = 1000
+      country_codes    = ["RU", "KP"]
+      priority         = 82
+      action           = "captcha"
+      immunity_seconds = 600
     }
   ]
   limit_search_requests_by_countries = {

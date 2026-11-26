@@ -333,7 +333,8 @@ variable "country_aggregate_rules" {
     limit                 = number
     priority              = number
     country_codes         = set(string)
-    action                = optional(string, "count") # count, challenge or block
+    action                = optional(string, "count") # count, challenge, captcha or block
+    immunity_seconds      = optional(number, 300)     # only used if action is captcha. Challenge immunity is set web ACL wide with var.challenge_immunity_seconds
     evaluation_window_sec = optional(number, 300)
   }))
   default = []
@@ -346,8 +347,12 @@ variable "country_aggregate_rules" {
   #   }
   # ]
   validation {
-    condition     = alltrue([for r in var.country_aggregate_rules : contains(["count", "challenge", "block"], r.action)])
-    error_message = "country_aggregate_rules[*].action must be one of count, challenge or block."
+    condition     = alltrue([for r in var.country_aggregate_rules : contains(["count", "challenge", "captcha", "block"], r.action)])
+    error_message = "country_aggregate_rules[*].action must be one of count, challenge, captcha or block."
+  }
+  validation {
+    condition     = alltrue([for r in var.country_aggregate_rules : r.immunity_seconds >= 60 && r.immunity_seconds <= 259200])
+    error_message = "country_aggregate_rules[*].immunity_seconds must be between 60 and 259200."
   }
   validation {
     condition     = alltrue([for r in var.country_aggregate_rules : contains([60, 120, 300, 600], r.evaluation_window_sec)])
