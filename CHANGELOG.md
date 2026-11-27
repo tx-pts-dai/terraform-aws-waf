@@ -1,5 +1,11 @@
 # Changelog
 
+## [10.1.0]
+
+### Added
+
+- `country_aggregate_rules`: rate-based rules that count all requests from a group of countries together (aggregate key `CONSTANT`) instead of per IP, with action `count` (default), `challenge`, `captcha` (with `immunity_seconds`, default 300) or `block`. Placed directly in the Web ACL; the countries stay subject to `everybody_else_config`.
+
 ## [10.0.0]
 
 WAF logging moves out of the module. Configure it in your own code against the `web_acl_arn` output. This unlocks every `aws_wafv2_web_acl_logging_configuration` option: `logging_filter`, `redacted_fields`, and any destination (S3, CloudWatch Logs, or Firehose with Parquet conversion).
